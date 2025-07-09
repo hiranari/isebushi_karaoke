@@ -28,14 +28,16 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  record: any
+  pitch_detector_dart: any
+  just_audio: any
+  permission_handler: any
+  path_provider: any
   flutter:
     sdk: flutter
-  just_audio: ^0.9.34
-  flutter_sound: ^9.2.13
-  permission_handler: ^11.0.0
 
   # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
+  # Use with the 333Icons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
