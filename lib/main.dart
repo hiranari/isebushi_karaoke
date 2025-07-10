@@ -7,6 +7,7 @@ import 'package:record/record.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
+import 'song_select_page.dart';
 
 void main() => runApp(MyApp());
 
@@ -17,7 +18,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '伊勢節カラオケ',
-      home: KaraokePage(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => SongSelectPage(songs: ['上がり馬場', '十五の松', '十五の菊']),
+        '/karaoke': (context) => KaraokePage(),
+      },
     );
   }
 }
@@ -39,11 +44,19 @@ class _KaraokePageState extends State<KaraokePage> {
   double? _currentPitch;
   final List<double> _recordedPitches = [];
   final List<double> _referencePitches = []; // 元音源のピッチ配列（例として空）
+  String? selectedSong;
 
   @override
   void initState() {
     super.initState();
     _loadReferencePitches();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    selectedSong = ModalRoute.of(context)?.settings.arguments as String?;
+    // 曲名に応じてピッチ配列や音源を切り替える処理をここに追加できます
   }
 
   Future<void> _loadReferencePitches() async {
