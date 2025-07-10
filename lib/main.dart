@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show rootBundle;
 
 void main() => runApp(MyApp());
 
@@ -37,6 +39,22 @@ class _KaraokePageState extends State<KaraokePage> {
   double? _currentPitch;
   final List<double> _recordedPitches = [];
   final List<double> _referencePitches = []; // 元音源のピッチ配列（例として空）
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReferencePitches();
+  }
+
+  Future<void> _loadReferencePitches() async {
+    final jsonStr = await rootBundle.loadString('assets/pitch/kiku_pitches.json');
+    final List<dynamic> jsonList = jsonDecode(jsonStr);
+    setState(() {
+      _referencePitches
+        ..clear()
+        ..addAll(jsonList.map((e) => (e as num).toDouble()));
+    });
+  }
 
   @override
   void dispose() {
@@ -102,9 +120,24 @@ class _KaraokePageState extends State<KaraokePage> {
     return matchCount / minLen * 100;
   }
 
+  double _calculateScore() {
+    if (_referencePitches.isEmpty || _recordedPitches.isEmpty) return 0;
+    int minLen = _referencePitches.length < _recordedPitches.length
+        ? _referencePitches.length
+        : _recordedPitches.length;
+    int matchCount = 0;
+    for (int i = 0; i < minLen; i++) {
+      if ((_referencePitches[i] - _recordedPitches[i]).abs() < 30) {
+        matchCount++;
+      }
+    }
+    return (matchCount / minLen) * 100;
+  }
+
   @override
   Widget build(BuildContext context) {
     double matchRate = _calculateMatchRate();
+    double score = _calculateScore();
     return Scaffold(
       appBar: AppBar(title: Text('伊勢節カラオケ')),
       body: Center(
@@ -123,6 +156,8 @@ class _KaraokePageState extends State<KaraokePage> {
             Text('現在のピッチ: ${_currentPitch?.toStringAsFixed(2) ?? "-"} Hz'),
             SizedBox(height: 20),
             Text('一致率: ${matchRate.toStringAsFixed(1)} %'),
+            SizedBox(height: 20),
+            Text('スコア: ${score.toStringAsFixed(1)} 点'),
           ],
         ),
       ),
