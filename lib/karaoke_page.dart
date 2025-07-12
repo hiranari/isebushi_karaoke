@@ -24,21 +24,18 @@ class _KaraokePageState extends State<KaraokePage> {
   double? _currentPitch;
   final List<double> _recordedPitches = [];
   final List<double> _referencePitches = [];
-  String? selectedSong;
+  Map<String, String>? selectedSong;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    selectedSong = ModalRoute.of(context)?.settings.arguments as String?;
+    selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     _loadReferencePitches();
   }
 
   Future<void> _loadReferencePitches() async {
-    String assetPath = 'assets/pitch/kiku_pitches.json';
-    if (selectedSong == 'ダミー曲') {
-      assetPath = 'assets/pitch/dummy_pitches.json';
-    }
-    final jsonStr = await rootBundle.loadString(assetPath);
+    final pitchFile = selectedSong?['pitchFile'] ?? 'assets/pitch/kiku_pitches.json';
+    final jsonStr = await rootBundle.loadString(pitchFile);
     final List<dynamic> jsonList = jsonDecode(jsonStr);
     setState(() {
       _referencePitches
@@ -56,11 +53,8 @@ class _KaraokePageState extends State<KaraokePage> {
   }
 
   Future<void> _playAudio() async {
-    String assetPath = 'assets/sounds/kiku.mp3';
-    if (selectedSong == 'ダミー曲') {
-      assetPath = 'assets/sounds/dummy.mp3';
-    }
-    await _player.setAudioSource(AudioSource.asset(assetPath));
+    final audioFile = selectedSong?['audioFile'] ?? 'assets/sounds/dummy.mp3';
+    await _player.setAudioSource(AudioSource.asset(audioFile));
     _player.play();
   }
 
@@ -134,7 +128,7 @@ class _KaraokePageState extends State<KaraokePage> {
     double matchRate = _calculateMatchRate();
     double score = _calculateScore();
     return Scaffold(
-      appBar: AppBar(title: Text(selectedSong ?? 'カラオケ')),
+      appBar: AppBar(title: Text(selectedSong?['title'] ?? 'カラオケ')), // ← ここを修正
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

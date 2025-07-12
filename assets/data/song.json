@@ -1,0 +1,17 @@
+[
+    {
+        "title": "上がり馬場",
+        "audioFile": "assets/sounds/kiku.mp3",
+        "pitchFile": "assets/pitch/kiku_pitches.json"
+    },
+    {
+        "title": "十五の松",
+        "audioFile": "assets/sounds/kiku.mp3",
+        "pitchFile": "assets/pitch/kiku_pitches.json"
+    },
+    {
+        "title": "十五の菊",
+        "audioFile": "assets/sounds/kiku.mp3",
+        "pitchFile": "assets/pitch/kiku_pitches.json"
+    }
+]

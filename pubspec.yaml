@@ -91,7 +91,8 @@ flutter:
     - assets/splash/splash.png
     - assets/images/
     - assets/sounds/
-    - assets/pitch/kiku_pitches.json
+    - assets/pitch/
+    - assets/data/song.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
       title: '伊勢節カラオケ',
       initialRoute: '/',
       routes: {
-        '/': (context) => const SongSelectPage(songs: ['伊勢節', 'ダミー曲']),
+        '/': (context) => const SongSelectPage(), // songsパラメータを削除
         '/karaoke': (context) => const KaraokePage(),
       },
     );
