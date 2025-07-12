@@ -61,17 +61,11 @@ flutter_icons:
 flutter_native_splash:
   color: "#ffffff" # 背景色
   image: assets/splash/splash.png
-  branding: assets/splash/splash.png
-  color_dark: "#042a49"
-  image_dark: assets/splash/splash.png
-  branding_dark: assets/splash/splash.png
   android_12:
     image: assets/splash/splash.png
-    branding: assets/splash/splash.png
-    icon_background_color: "#42a5f5"
-    image_dark: assets/splash/splash.png
-    branding_dark: assets/splash/splash.png
-    icon_background_color_dark: "#042a49"
+    icon_background_color: "#ffffff"
+    # アダプティブアイコンを無効化
+    android_gravity: fill
   web: false
 
 # For information on the generic Dart part of this file, see the
