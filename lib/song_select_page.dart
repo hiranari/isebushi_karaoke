@@ -37,6 +37,9 @@ class _SongSelectPageState extends State<SongSelectPage> {
               itemBuilder: (context, index) {
                 return ListTile(
                   title: Text(songs[index]['title'] ?? ''),
+                  tileColor: index % 2 == 0
+                      ? Colors.grey[100] // 偶数行（薄いグレー）
+                      : Colors.white, // 奇数行（白）
                   onTap: () {
                     Navigator.pushReplacementNamed(
                       context,
