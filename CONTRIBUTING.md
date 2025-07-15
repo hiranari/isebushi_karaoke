@@ -30,11 +30,19 @@
 - **ユーザー通知**: エラー時はSnackBarで適切なメッセージを表示
 - **ログ出力**: デバッグ用のログを適切に出力
 
-### Phase 1 専用ルール
-- **MP3処理**: `lib/services/audio_processing_service.dart` に集約
-- **ピッチ検出**: `lib/services/pitch_detection_service.dart` に集約
-- **キャッシュ管理**: `lib/services/cache_service.dart` に集約
-- **非同期処理**: FutureBuilder使用時は必ずローディング状態を表示
+### Phase 3 専用ルール
+- **総合スコアリング**: `lib/services/scoring_service.dart` に集約
+- **詳細分析**: `lib/services/analysis_service.dart` に集約  
+- **改善提案**: `lib/services/improvement_suggestion_service.dart` に集約
+- **状態管理**: `lib/services/karaoke_session_notifier.dart` でUI状態制御
+- **プログレッシブUI**: 段階的情報開示パターンの実装
+- **データモデル**: `lib/models/song_result.dart` で歌唱結果を一元管理
+
+### テスト方針
+- **ユニットテスト**: ビジネスロジック（services/models）の完全網羅
+- **ウィジェットテスト**: UI層の表示とインタラクションの検証
+- **保守性重視**: テストコードも100行ルール・可読性・単一責務を遵守
+- **分離テスト**: UI層とロジック層の独立したテスト実装
 
 ### コメント規則
 - **クラス**: 目的と責任を明記
