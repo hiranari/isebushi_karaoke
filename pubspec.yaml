@@ -9,6 +9,7 @@ dependencies:
   pitch_detector_dart: ^2.0.1
   permission_handler: ^11.0.1
   path_provider: ^2.1.1  # Phase 1で追加
+  provider: ^6.1.1  # Phase 3で追加 - 状態管理用
 
 dev_dependencies:
   flutter_test:
