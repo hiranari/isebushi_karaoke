@@ -6,9 +6,12 @@ import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:provider/provider.dart';
 import '../services/pitch_detection_service.dart';
 import '../services/cache_service.dart';
+import '../providers/song_result_provider.dart';
+import '../widgets/song_result_widget.dart';
 
 class KaraokePage extends StatefulWidget {
   const KaraokePage({super.key});
@@ -205,12 +208,43 @@ class _KaraokePageState extends State<KaraokePage> {
       await _recorder.stop();
       await _pcmStreamSub?.cancel();
       setState(() => _isRecording = false);
+      
+      // Phase 3: 歌唱終了後、詳細な分析とスコア計算を実行
+      await _calculateSongResult();
     } catch (e) {
       _showSnackBar('録音の停止に失敗しました');
     }
   }
 
-  double _calculateScore() {
+  /// Phase 3: 包括的な歌唱結果の計算
+  Future<void> _calculateSongResult() async {
+    if (_referencePitches.isEmpty || _recordedPitches.isEmpty) {
+      _showSnackBar('録音データまたは基準データが不足しています');
+      return;
+    }
+
+    final provider = Provider.of<SongResultProvider>(context, listen: false);
+    
+    try {
+      // 楽曲の推定時間（ピッチデータから推定）
+      const double frameRate = 10.0; // 仮定: 10fps
+      final duration = Duration(
+        milliseconds: (_referencePitches.length / frameRate * 1000).round(),
+      );
+
+      await provider.calculateSongResult(
+        songTitle: selectedSong?['title'] ?? '不明な楽曲',
+        recordedPitches: List.from(_recordedPitches),
+        referencePitches: List.from(_referencePitches),
+        songDuration: duration,
+      );
+    } catch (e) {
+      _showSnackBar('結果の計算中にエラーが発生しました: $e');
+    }
+  }
+
+  /// Phase 2との互換性のための従来スコア計算（デバッグ用）
+  double _calculateLegacyScore() {
     if (_referencePitches.isEmpty || _recordedPitches.isEmpty) return 0;
 
     final minLen = _referencePitches.length < _recordedPitches.length
@@ -228,64 +262,172 @@ class _KaraokePageState extends State<KaraokePage> {
 
   @override
   Widget build(BuildContext context) {
-    double score = _calculateScore();
+    // Phase 2との互換性のための従来スコア（デバッグ情報として残す）
+    double legacyScore = _calculateLegacyScore();
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(selectedSong?['title'] ?? 'カラオケ'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _clearCache, tooltip: 'キャッシュクリア'),
+          IconButton(
+            icon: const Icon(Icons.refresh), 
+            onPressed: _clearCache, 
+            tooltip: 'キャッシュクリア'
+          ),
+          // Phase 3: 結果リセット機能
+          Consumer<SongResultProvider>(
+            builder: (context, provider, child) {
+              if (provider.currentResult != null) {
+                return IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => provider.clearResult(),
+                  tooltip: '結果をクリア',
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // ピッチデータ読み込み状態の表示
-            if (_isLoadingReferencePitches)
-              Column(
+            // コントロール部分
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 10),
-                  Text(_analysisStatus),
+                  // ピッチデータ読み込み状態の表示
+                  if (_isLoadingReferencePitches)
+                    Column(
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 10),
+                        Text(_analysisStatus),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+
+                  // Phase 1で追加: 解析状況表示
+                  if (!_isLoadingReferencePitches && _analysisStatus.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Text(
+                        '状態: $_analysisStatus', 
+                        style: TextStyle(color: Colors.blue[800]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+
+                  // 操作ボタン
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _playAudio,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('音源再生'),
+                      ),
+                      
+                      if (!kIsWeb)
+                        ElevatedButton.icon(
+                          onPressed: _isRecording ? _stopRecording : _startRecording,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isRecording ? Colors.red : Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                          label: Text(_isRecording ? '録音停止' : '録音開始'),
+                        ),
+                    ],
+                  ),
+
+                  if (kIsWeb) 
+                    Container(
+                      margin: const EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange[200]!),
+                      ),
+                      child: const Text(
+                        'Webでは録音機能は利用できません',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+
                   const SizedBox(height: 20),
+
+                  // リアルタイムピッチ表示
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          '現在のピッチ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${_currentPitch?.toStringAsFixed(2) ?? "---"} Hz',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // デバッグ情報（開発用）
+                  if (kDebugMode)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'デバッグ情報',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text('従来スコア: ${legacyScore.toStringAsFixed(1)} 点'),
+                          Text('基準ピッチ数: ${_referencePitches.length}'),
+                          Text('録音ピッチ数: ${_recordedPitches.length}'),
+                        ],
+                      ),
+                    ),
                 ],
               ),
+            ),
 
-            // Phase 1で追加: 解析状況表示
-            if (!_isLoadingReferencePitches && _analysisStatus.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(8),
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Text('状態: $_analysisStatus', style: TextStyle(color: Colors.blue[800])),
-              ),
-
-            ElevatedButton(onPressed: _playAudio, child: const Text('音源を再生')),
-
-            const SizedBox(height: 10),
-
-            if (!kIsWeb)
-              ElevatedButton(
-                onPressed: _isRecording ? _stopRecording : _startRecording,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isRecording ? Colors.red : Colors.green,
-                ),
-                child: Text(_isRecording ? '録音停止' : '録音開始'),
-              ),
-
-            if (kIsWeb) const Text('Webでは録音機能は利用できません'),
-
-            const SizedBox(height: 20),
-            Text('現在のピッチ: ${_currentPitch?.toStringAsFixed(2) ?? "-"} Hz'),
-            const SizedBox(height: 20),
-            Text('スコア: ${score.toStringAsFixed(1)} 点'),
-            const SizedBox(height: 10),
-            Text('基準ピッチ数: ${_referencePitches.length}'),
-            Text('録音ピッチ数: ${_recordedPitches.length}'),
+            // Phase 3: 歌唱結果表示ウィジェット
+            const SongResultWidget(),
           ],
         ),
       ),
