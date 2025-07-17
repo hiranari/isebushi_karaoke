@@ -1,5 +1,7 @@
 {
-  "cSpell.words": [
+  "version": "0.2",
+  "language": "en,ja",
+  "words": [
     "isebushi",
     "karaoke",
     "カラオケ",
@@ -13,7 +15,6 @@
     "pitchAccuracy",
     "stabilityScore",
     "timingScore",
-    "mockResult",
     "testWidgets",
     "WidgetTester",
     "findsOneWidget",
@@ -23,7 +24,6 @@
     "MaterialApp",
     "Scaffold",
     "LinearProgressIndicator",
-    "DateTime",
     "toStringAsFixed",
     "textContaining",
     "onShowDetails",
@@ -56,7 +56,6 @@
     "scoringService",
     "comprehensiveScore",
     "improvementSuggestion",
-    "DTW",
     "centDifferences",
     "alignedPairs",
     "alignedPitches",
@@ -76,36 +75,18 @@
     "analyzeTimingAccuracy",
     "calculateOverallScore",
     "createEmptyResult",
-    "compareSimple",
-    "PitchComparisonException",
-    "AlignedPitchPair",
-    "PitchStabilityAnalysis",
-    "VibratoAnalysis",
-    "TimingAccuracyAnalysis",
-    "PitchStabilitySegment",
-    "VibratoSegment",
-    "TimingDeviation",
-    "ComprehensiveScore",
-    "SongResult",
-    "ScoreBreakdown",
-    "PitchAnalysis",
-    "TimingAnalysis",
-    "StabilityAnalysis",
-    "OverallScoreWidget"
+    "compareSimple"
   ],
-  "cSpell.language": "en,ja",
-  "cSpell.enabledFileTypes": {
-    "dart": true,
-    "yaml": true,
-    "markdown": true,
-    "json": true
-  },
-  "cSpell.ignorePaths": [
-    "node_modules",
-    "build",
-    ".git",
-    "*.g.dart",
-    "*.freezed.dart",
-    "*.mocks.dart"
-  ]
+  "ignorePaths": [
+    "node_modules/**",
+    "build/**",
+    ".git/**",
+    "**/*.g.dart",
+    "**/*.freezed.dart",
+    "**/*.mocks.dart",
+    "pubspec.lock",
+    "analysis_options.yaml"
+  ],
+  "allowCompoundWords": true,
+  "dictionaries": ["dart", "flutter"]
 }
