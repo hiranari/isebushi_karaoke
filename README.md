@@ -82,14 +82,66 @@ assets/
 ## セットアップ
 
 ### 前提条件
-- Flutter SDK (3.x以上推奨)
-- Android Studio / Xcode (各プラットフォーム開発用)
+- **Flutter SDK** (3.8.0以上、3.24.x推奨)
+- **Dart SDK** (Flutter SDKに含まれる)
+- **Android Studio** または **VS Code** (IDE)
+- **Android SDK** (Android開発用)
+- **Xcode** (iOS開発用、macOSのみ)
+- **Git** (バージョン管理)
 
-### インストール手順
+### Flutter SDKのインストール
+
+#### Windows
+1. [Flutter公式サイト](https://docs.flutter.dev/get-started/install/windows)からFlutter SDKをダウンロード
+2. ダウンロードしたZIPファイルを適当な場所（例：`C:\development`）に展開
+3. システム環境変数のPATHに`C:\development\flutter\bin`を追加
+4. コマンドプロンプトで`flutter --version`を実行して確認
+
+#### macOS
+```bash
+# Homebrewを使用してインストール
+brew install --cask flutter
+
+# または手動インストール
+curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_3.24.5-stable.zip
+unzip flutter_macos_3.24.5-stable.zip
+export PATH="$PWD/flutter/bin:$PATH"
+```
+
+#### Linux
+```bash
+# snapを使用してインストール
+sudo snap install flutter --classic
+
+# または手動インストール
+curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz
+tar xf flutter_linux_3.24.5-stable.tar.xz
+export PATH="$PWD/flutter/bin:$PATH"
+```
+
+### 開発環境の設定
+
+1. **Flutter doctor の実行**
+   ```bash
+   flutter doctor
+   ```
+   不足している依存関係やツールがあれば指示に従ってインストール
+
+2. **Android Studioの設定** (Android開発用)
+   - Android Studio をインストール
+   - Android SDK の設定
+   - AVD (Android Virtual Device) の作成
+
+3. **VS Code の設定** (推奨)
+   - VS Code をインストール
+   - Flutter 拡張機能をインストール
+   - Dart 拡張機能をインストール
+
+### プロジェクトのセットアップ
 
 1. **リポジトリのクローン**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/hiranari/isebushi_karaoke.git
    cd isebushi_karaoke
    ```
 
@@ -98,16 +150,54 @@ assets/
    flutter pub get
    ```
 
-3. **アイコン・スプラッシュ画像の生成**
+3. **静的解析の実行**
+   ```bash
+   flutter analyze
+   ```
+
+4. **テストの実行**
+   ```bash
+   flutter test
+   ```
+
+5. **アイコン・スプラッシュ画像の生成**
    ```bash
    flutter pub run flutter_launcher_icons:main
    flutter pub run flutter_native_splash:create
    ```
 
-4. **アプリの実行**
+6. **アプリのビルドと実行**
    ```bash
+   # デバッグモードで実行
    flutter run
+
+   # リリースモードで実行
+   flutter run --release
+
+   # 特定のデバイスで実行
+   flutter devices  # 利用可能なデバイス一覧を表示
+   flutter run -d <device-id>
    ```
+
+### プラットフォーム別のビルド
+
+#### Android APK の生成
+```bash
+# リリースAPKの生成
+flutter build apk --release
+
+# サイズ最適化版APKの生成
+flutter build apk --split-per-abi
+```
+
+#### iOS アプリの生成 (macOSのみ)
+```bash
+# iOSシミュレーター用
+flutter build ios --simulator
+
+# 実機用
+flutter build ios --release
+```
 
 ## 楽曲データの追加
 
@@ -152,6 +242,66 @@ assets/
 ### iOS
 iOS の場合は自動で権限処理されます
 
+## CI/CD パイプライン
+
+このプロジェクトでは GitHub Actions を使用した自動化された CI/CD パイプラインを実装しています。
+
+### 自動実行される処理
+
+プルリクエストまたはメインブランチへのプッシュ時に以下が実行されます：
+
+1. **環境セットアップ**
+   - Ubuntu最新版での実行
+   - Java 17のセットアップ
+   - Flutter 3.24.5 (stable) のインストール
+
+2. **依存関係のインストール**
+   ```bash
+   flutter pub get
+   ```
+
+3. **静的解析**
+   ```bash
+   flutter analyze --fatal-infos
+   ```
+
+4. **テスト実行**
+   ```bash
+   flutter test --coverage
+   ```
+
+5. **カバレッジレポート** (オプション)
+   - Codecovへのカバレッジ情報アップロード
+
+### ワークフローファイル
+
+CI設定は `.github/workflows/ci.yml` で管理されています。
+
+### 失敗時の対応
+
+いずれかのステップが失敗した場合：
+- プルリクエストのマージが制限されます
+- GitHub上でエラーの詳細を確認できます
+- ローカルで同じコマンドを実行して問題を特定・修正してください
+
+```bash
+# ローカルでCIと同じチェックを実行
+flutter pub get
+flutter analyze --fatal-infos
+flutter test
+```
+
+### ローカル検証スクリプト
+
+CIと同じチェックをローカルで実行するためのスクリプトを用意しています：
+
+```bash
+# スクリプトの実行
+./scripts/validate-ci.sh
+```
+
+このスクリプトはプッシュ前に実行することで、CIでの失敗を事前に防ぐことができます。
+
 ## 開発者向け情報
 
 ### ビルド設定
@@ -169,10 +319,94 @@ iOS の場合は自動で権限処理されます
 - `PitchDetectionService`: ピッチ検出処理
 
 ### 開発環境セットアップ
-1. Flutter SDKのインストール
-2. 依存関係の解決: `flutter pub get`
-3. 問題解決の実行: `flutter analyze`
-4. アプリの実行: `flutter run`
+
+1. **Flutter SDKのインストール** (上記の「Flutter SDKのインストール」セクションを参照)
+
+2. **開発環境の確認**
+   ```bash
+   flutter doctor -v
+   ```
+
+3. **依存関係の解決**
+   ```bash
+   flutter pub get
+   ```
+
+4. **静的解析の実行**
+   ```bash
+   flutter analyze --fatal-infos
+   ```
+
+5. **テストの実行**
+   ```bash
+   # 全てのテストを実行
+   flutter test
+
+   # カバレッジ付きでテストを実行
+   flutter test --coverage
+
+   # 特定のテストファイルのみ実行
+   flutter test test/scoring_service_test.dart
+   ```
+
+6. **アプリの実行**
+   ```bash
+   # デバッグモードで実行
+   flutter run
+
+   # ホットリロードの使用
+   # アプリ実行中に 'r' キーで即座に変更を反映
+   ```
+
+### コマンドリファレンス
+
+#### 基本コマンド
+```bash
+# プロジェクトの状態確認
+flutter doctor
+
+# 利用可能なデバイス確認
+flutter devices
+
+# 依存関係の更新
+flutter pub upgrade
+
+# キャッシュのクリア
+flutter clean
+
+# パッケージの追加
+flutter pub add <package_name>
+
+# パッケージの削除
+flutter pub remove <package_name>
+```
+
+#### ビルドコマンド
+```bash
+# Android APK（リリース版）
+flutter build apk --release
+
+# Android Bundle（Google Play用）
+flutter build appbundle --release
+
+# iOS（macOSのみ）
+flutter build ios --release
+
+# Web版
+flutter build web
+```
+
+#### 開発用コマンド
+```bash
+# Widgetテスト用のゴールデンファイル更新
+flutter test --update-goldens
+
+# 依存関係の依存グラフ確認
+flutter pub deps
+
+# アプリサイズの分析
+flutter build apk --analyze-size
+```
 
 ### トラブルシューティング
 #### コンパイルエラーが発生した場合
