@@ -1,201 +1,275 @@
 import 'dart:math' as math;
 import '../models/song_result.dart';
 
-/// スコア計算を担当するサービスクラス
-/// Phase 3: 多角的評価指標による詳細スコアリング
+/// Phase 3: 多角的スコアリングサービス
+/// 
+/// 単一責任の原則に従い、スコアリングロジックのみを担当します。
+/// ピッチ精度(70%)、安定性(20%)、タイミング(10%)の重み付きスコアを算出し、
+/// 詳細な分析結果を提供します。
 class ScoringService {
-  // 音程精度評価のしきい値（Hz）
-  static const double PERFECT_PITCH_THRESHOLD = 10.0; // 完璧とみなす範囲
-  static const double GOOD_PITCH_THRESHOLD = 30.0; // 良いとみなす範囲
-  static const double ACCEPTABLE_PITCH_THRESHOLD = 50.0; // 許容範囲
+  // スコアリング定数
+  static const double PITCH_ACCURACY_WEIGHT = 0.7;
+  static const double STABILITY_WEIGHT = 0.2;
+  static const double TIMING_WEIGHT = 0.1;
+  
+  // 精度判定閾値
+  static const double PITCH_ACCURACY_THRESHOLD_CENTS = 50.0; // セント単位
+  static const double TIMING_ACCURACY_THRESHOLD_SEC = 0.2;   // 秒単位
+  static const double STABILITY_THRESHOLD_CENTS = 30.0;      // セント単位
 
-  // 安定性評価のしきい値
-  static const double STABLE_VARIATION_THRESHOLD = 20.0; // 安定とみなす変動幅（Hz）
-  static const double UNSTABLE_VARIATION_THRESHOLD = 50.0; // 不安定とみなす変動幅（Hz）
-
-  // タイミング評価のしきい値
-  static const double PERFECT_TIMING_THRESHOLD = 0.1; // 完璧なタイミング（秒）
-  static const double GOOD_TIMING_THRESHOLD = 0.3; // 良いタイミング（秒）
-
-  /// 総合スコアを計算
-  static ComprehensiveScore calculateComprehensiveScore({
-    required List<double> recordedPitches,
+  /// 歌唱データから総合的なスコアを算出
+  /// 
+  /// [referencePitches] 基準ピッチデータ(Hz)
+  /// [recordedPitches] 録音ピッチデータ(Hz)
+  /// [songTitle] 楽曲タイトル
+  /// [recordingTimestamps] 録音時のタイムスタンプ(オプション)
+  /// 戻り値: 詳細なスコアリング結果
+  static SongResult calculateComprehensiveScore({
     required List<double> referencePitches,
+    required List<double> recordedPitches, 
+    required String songTitle,
+    List<double>? recordingTimestamps,
   }) {
-    final pitchAccuracy = _calculatePitchAccuracyScore(recordedPitches, referencePitches);
-    final stability = _calculateStabilityScore(recordedPitches);
-    final timing = _calculateTimingScore(recordedPitches, referencePitches);
-
-    return ComprehensiveScore.calculate(
-      pitchAccuracy: pitchAccuracy,
-      stability: stability,
-      timing: timing,
+    // データの前処理
+    final processedData = _preprocessPitchData(referencePitches, recordedPitches);
+    final refPitches = processedData['reference'] as List<double>;
+    final recPitches = processedData['recorded'] as List<double>;
+    
+    // 各分析の実行
+    final pitchAnalysis = _analyzePitchAccuracy(refPitches, recPitches);
+    final stabilityAnalysis = _analyzeStability(recPitches);
+    final timingAnalysis = _analyzeTiming(refPitches, recPitches, recordingTimestamps);
+    
+    // スコア内訳の計算
+    final scoreBreakdown = ScoreBreakdown(
+      pitchAccuracyScore: _calculatePitchAccuracyScore(pitchAnalysis),
+      stabilityScore: _calculateStabilityScore(stabilityAnalysis),
+      timingScore: _calculateTimingScore(timingAnalysis),
+    );
+    
+    return SongResult(
+      songTitle: songTitle,
+      timestamp: DateTime.now(),
+      totalScore: scoreBreakdown.totalScore,
+      scoreBreakdown: scoreBreakdown,
+      pitchAnalysis: pitchAnalysis,
+      timingAnalysis: timingAnalysis,
+      stabilityAnalysis: stabilityAnalysis,
+      feedback: [], // フィードバックサービスで生成
     );
   }
 
-  /// 音程精度スコアを計算（70%の重み）
-  static double _calculatePitchAccuracyScore(
-    List<double> recordedPitches,
-    List<double> referencePitches,
+  /// ピッチデータの前処理
+  /// 長さを揃えて、無効なデータを除去
+  static Map<String, List<double>> _preprocessPitchData(
+    List<double> reference,
+    List<double> recorded,
   ) {
-    if (recordedPitches.isEmpty || referencePitches.isEmpty) return 0.0;
-
-    final minLength = math.min(recordedPitches.length, referencePitches.length);
-    double totalScore = 0.0;
-    int validCount = 0;
-
+    final minLength = math.min(reference.length, recorded.length);
+    
+    final processedRef = <double>[];
+    final processedRec = <double>[];
+    
     for (int i = 0; i < minLength; i++) {
-      final recorded = recordedPitches[i];
-      final reference = referencePitches[i];
-
-      // 無効なピッチ（0Hz以下）はスキップ
-      if (recorded <= 0 || reference <= 0) continue;
-
-      final difference = (recorded - reference).abs();
-      double pointScore = 0.0;
-
-      if (difference <= PERFECT_PITCH_THRESHOLD) {
-        pointScore = 100.0; // 完璧
-      } else if (difference <= GOOD_PITCH_THRESHOLD) {
-        // 線形補間でスコア計算
-        pointScore = 100.0 - (difference - PERFECT_PITCH_THRESHOLD) / 
-                    (GOOD_PITCH_THRESHOLD - PERFECT_PITCH_THRESHOLD) * 20.0;
-      } else if (difference <= ACCEPTABLE_PITCH_THRESHOLD) {
-        // 許容範囲内
-        pointScore = 80.0 - (difference - GOOD_PITCH_THRESHOLD) / 
-                    (ACCEPTABLE_PITCH_THRESHOLD - GOOD_PITCH_THRESHOLD) * 50.0;
-      } else {
-        // 許容範囲外
-        pointScore = math.max(0.0, 30.0 - (difference - ACCEPTABLE_PITCH_THRESHOLD) * 0.5);
+      final refPitch = reference[i];
+      final recPitch = recorded[i];
+      
+      // 両方とも有効なピッチの場合のみ追加
+      if (refPitch > 0 && recPitch > 0) {
+        processedRef.add(refPitch);
+        processedRec.add(recPitch);
       }
-
-      totalScore += pointScore;
-      validCount++;
     }
-
-    return validCount > 0 ? totalScore / validCount : 0.0;
+    
+    return {
+      'reference': processedRef,
+      'recorded': processedRec,
+    };
   }
 
-  /// 安定性スコアを計算（20%の重み）
-  static double _calculateStabilityScore(List<double> recordedPitches) {
-    if (recordedPitches.length < 2) return 0.0;
-
-    final validPitches = recordedPitches.where((p) => p > 0).toList();
-    if (validPitches.length < 2) return 0.0;
-
-    // 連続する音程の変動を分析
-    List<double> variations = [];
-    for (int i = 1; i < validPitches.length; i++) {
-      final variation = (validPitches[i] - validPitches[i - 1]).abs();
-      variations.add(variation);
-    }
-
-    // 平均変動幅を計算
-    final averageVariation = variations.reduce((a, b) => a + b) / variations.length;
-
-    // 安定性スコアを計算
-    double stabilityScore = 0.0;
-    if (averageVariation <= STABLE_VARIATION_THRESHOLD) {
-      stabilityScore = 100.0;
-    } else if (averageVariation <= UNSTABLE_VARIATION_THRESHOLD) {
-      stabilityScore = 100.0 - (averageVariation - STABLE_VARIATION_THRESHOLD) / 
-                      (UNSTABLE_VARIATION_THRESHOLD - STABLE_VARIATION_THRESHOLD) * 70.0;
-    } else {
-      stabilityScore = math.max(0.0, 30.0 - (averageVariation - UNSTABLE_VARIATION_THRESHOLD) * 0.3);
-    }
-
-    return stabilityScore;
-  }
-
-  /// タイミングスコアを計算（10%の重み）
-  static double _calculateTimingScore(
-    List<double> recordedPitches,
+  /// ピッチ精度の分析
+  static PitchAnalysis _analyzePitchAccuracy(
     List<double> referencePitches,
+    List<double> recordedPitches,
   ) {
-    if (recordedPitches.isEmpty || referencePitches.isEmpty) return 0.0;
-
-    // 簡易的なタイミング評価：長さの一致度で判定
-    final recordedLength = recordedPitches.length;
-    final referenceLength = referencePitches.length;
+    final pitchPoints = <PitchPoint>[];
+    final deviations = <double>[];
+    int correctNotes = 0;
     
-    final lengthDifference = (recordedLength - referenceLength).abs();
-    final maxLength = math.max(recordedLength, referenceLength);
+    for (int i = 0; i < referencePitches.length; i++) {
+      final refPitch = referencePitches[i];
+      final recPitch = recordedPitches[i];
+      
+      // セント単位でのずれを計算
+      final deviationCents = _calculateCentsDeviation(refPitch, recPitch);
+      deviations.add(deviationCents);
+      
+      // 正確性の判定
+      if (deviationCents.abs() <= PITCH_ACCURACY_THRESHOLD_CENTS) {
+        correctNotes++;
+      }
+      
+      pitchPoints.add(PitchPoint(
+        timestamp: i * 0.1, // TODO: 実際のタイムスタンプを使用
+        referencePitch: refPitch,
+        recordedPitch: recPitch,
+        deviation: deviationCents,
+      ));
+    }
     
-    if (maxLength == 0) return 0.0;
+    final averageDeviation = deviations.isEmpty ? 0.0 :
+        deviations.reduce((a, b) => a + b) / deviations.length;
+    final maxDeviation = deviations.isEmpty ? 0.0 :
+        deviations.reduce(math.max);
     
-    final timingAccuracy = 1.0 - (lengthDifference / maxLength);
-    
-    // より詳細なタイミング分析（音程変化点の検出）
-    final recordedChanges = _detectPitchChanges(recordedPitches);
-    final referenceChanges = _detectPitchChanges(referencePitches);
-    
-    final changeTimingScore = _compareChangeTimings(recordedChanges, referenceChanges);
-    
-    // 長さ一致度50%、変化タイミング50%で重み付け
-    return (timingAccuracy * 50.0) + (changeTimingScore * 50.0);
+    return PitchAnalysis(
+      averageDeviation: averageDeviation,
+      maxDeviation: maxDeviation,
+      correctNotes: correctNotes,
+      totalNotes: referencePitches.length,
+      pitchPoints: pitchPoints,
+      deviationHistory: deviations,
+    );
   }
 
-  /// 音程変化点を検出
-  static List<int> _detectPitchChanges(List<double> pitches) {
-    List<int> changes = [];
-    const double changeThreshold = 20.0; // Hz
-
-    for (int i = 1; i < pitches.length; i++) {
-      if (pitches[i] > 0 && pitches[i - 1] > 0) {
-        final difference = (pitches[i] - pitches[i - 1]).abs();
-        if (difference > changeThreshold) {
-          changes.add(i);
-        }
+  /// 安定性の分析
+  static StabilityAnalysis _analyzeStability(List<double> recordedPitches) {
+    if (recordedPitches.length < 2) {
+      return const StabilityAnalysis(
+        averageVariation: 0.0,
+        maxVariation: 0.0,
+        stableNotes: 0,
+        unstableNotes: 0,
+        variationHistory: [],
+      );
+    }
+    
+    final variations = <double>[];
+    int stableNotes = 0;
+    int unstableNotes = 0;
+    
+    // 隣接するピッチ間の変動を分析
+    for (int i = 1; i < recordedPitches.length; i++) {
+      final variation = _calculateCentsDeviation(
+        recordedPitches[i - 1],
+        recordedPitches[i],
+      ).abs();
+      
+      variations.add(variation);
+      
+      if (variation <= STABILITY_THRESHOLD_CENTS) {
+        stableNotes++;
+      } else {
+        unstableNotes++;
       }
     }
-
-    return changes;
+    
+    final averageVariation = variations.isEmpty ? 0.0 :
+        variations.reduce((a, b) => a + b) / variations.length;
+    final maxVariation = variations.isEmpty ? 0.0 :
+        variations.reduce(math.max);
+    
+    return StabilityAnalysis(
+      averageVariation: averageVariation,
+      maxVariation: maxVariation,
+      stableNotes: stableNotes,
+      unstableNotes: unstableNotes,
+      variationHistory: variations,
+    );
   }
 
-  /// 変化タイミングの一致度を比較
-  static double _compareChangeTimings(List<int> recorded, List<int> reference) {
-    if (recorded.isEmpty && reference.isEmpty) return 100.0;
-    if (recorded.isEmpty || reference.isEmpty) return 0.0;
-
-    int matches = 0;
-    const int toleranceFrames = 3; // 許容誤差フレーム数
-
-    for (final refChange in reference) {
-      for (final recChange in recorded) {
-        if ((recChange - refChange).abs() <= toleranceFrames) {
-          matches++;
-          break;
-        }
-      }
+  /// タイミングの分析
+  static TimingAnalysis _analyzeTiming(
+    List<double> referencePitches,
+    List<double> recordedPitches,
+    List<double>? recordingTimestamps,
+  ) {
+    // TODO: 実際のタイミング分析を実装
+    // 現在は基本的な実装のみ
+    
+    final latencyHistory = <double>[];
+    int earlyNotes = 0;
+    int lateNotes = 0;
+    int onTimeNotes = recordedPitches.length;
+    
+    // 簡易的なタイミング分析（今後改善予定）
+    for (int i = 0; i < recordedPitches.length; i++) {
+      latencyHistory.add(0.0); // プレースホルダー
     }
-
-    final maxChanges = math.max(recorded.length, reference.length);
-    return maxChanges > 0 ? (matches / maxChanges) * 100.0 : 0.0;
+    
+    return TimingAnalysis(
+      averageLatency: 0.0,
+      maxLatency: 0.0,
+      earlyNotes: earlyNotes,
+      lateNotes: lateNotes,
+      onTimeNotes: onTimeNotes,
+      latencyHistory: latencyHistory,
+    );
   }
 
-  /// セント単位での音程差を計算
-  static double calculateCentDifference(double pitch1, double pitch2) {
-    if (pitch1 <= 0 || pitch2 <= 0) return 0.0;
-    return 1200.0 * (math.log(pitch2 / pitch1) / math.ln2);
+  /// ピッチ精度スコアの計算（0-100）
+  static double _calculatePitchAccuracyScore(PitchAnalysis analysis) {
+    if (analysis.totalNotes == 0) return 0.0;
+    
+    // 基本正確性スコア
+    final accuracyScore = analysis.accuracyRatio * 100;
+    
+    // 平均ずれによる減点
+    final deviationPenalty = math.min(
+      analysis.averageDeviation / PITCH_ACCURACY_THRESHOLD_CENTS * 20,
+      20.0,
+    );
+    
+    return math.max(0.0, accuracyScore - deviationPenalty);
   }
 
-  /// スコアのランク判定
-  static String getScoreRank(double score) {
-    if (score >= 90) return 'S';
-    if (score >= 80) return 'A';
-    if (score >= 70) return 'B';
-    if (score >= 60) return 'C';
-    if (score >= 50) return 'D';
-    return 'E';
+  /// 安定性スコアの計算（0-100）
+  static double _calculateStabilityScore(StabilityAnalysis analysis) {
+    final totalNotes = analysis.stableNotes + analysis.unstableNotes;
+    if (totalNotes == 0) return 100.0;
+    
+    // 基本安定性スコア
+    final stabilityScore = analysis.stabilityRatio * 100;
+    
+    // 平均変動による減点
+    final variationPenalty = math.min(
+      analysis.averageVariation / STABILITY_THRESHOLD_CENTS * 15,
+      15.0,
+    );
+    
+    return math.max(0.0, stabilityScore - variationPenalty);
   }
 
-  /// スコアに基づくコメント生成
-  static String getScoreComment(double score) {
-    if (score >= 90) return '素晴らしい歌唱です！';
-    if (score >= 80) return 'とても上手に歌えています！';
-    if (score >= 70) return '良い調子です！';
-    if (score >= 60) return 'もう少し練習してみましょう';
-    if (score >= 50) return '基本を見直してみましょう';
-    return '一緒に頑張りましょう！';
+  /// タイミングスコアの計算（0-100）
+  static double _calculateTimingScore(TimingAnalysis analysis) {
+    // TODO: 実際のタイミングスコア計算を実装
+    // 現在は基本値を返す
+    return 85.0; // プレースホルダー
+  }
+
+  /// セント単位での音程のずれを計算
+  /// 
+  /// [referencePitch] 基準ピッチ(Hz)
+  /// [recordedPitch] 録音ピッチ(Hz)
+  /// 戻り値: ずれ（セント単位）
+  static double _calculateCentsDeviation(double referencePitch, double recordedPitch) {
+    if (referencePitch <= 0 || recordedPitch <= 0) return 0.0;
+    
+    // セント = 1200 * log2(f2/f1)
+    return 1200 * (math.log(recordedPitch / referencePitch) / math.ln2);
+  }
+
+  /// スコアのグレード判定
+  static String getScoreGrade(double score) {
+    if (score >= 95) return 'S';
+    if (score >= 90) return 'A+';
+    if (score >= 85) return 'A';
+    if (score >= 80) return 'B+';
+    if (score >= 75) return 'B';
+    if (score >= 70) return 'C+';
+    if (score >= 65) return 'C';
+    if (score >= 60) return 'D+';
+    if (score >= 55) return 'D';
+    return 'F';
   }
 }
