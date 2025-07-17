@@ -1,257 +1,269 @@
 import 'dart:math' as math;
 import '../models/song_result.dart';
+import 'scoring_service.dart';
 
-/// Phase 3: 詳細分析を担当するサービスクラス
-/// 
-/// 単一責任原則: 分析ロジックのみに専念
-/// 分離原則: スコアリングとは独立した分析処理
+/// 詳細分析を担当するサービスクラス
+/// Phase 3: 歌唱データの詳細解析とグラフ用データ生成
 class AnalysisService {
-  /// 包括的な分析を実行
-  /// 
-  /// [recordedPitches] 録音されたピッチデータ
-  /// [referencePitches] 基準ピッチデータ
-  /// [songDuration] 楽曲の総時間
-  /// 戻り値: AnalysisData 詳細分析結果
-  static AnalysisData performDetailedAnalysis({
+  // 分析用定数
+  static const double FRAME_DURATION_SECONDS = 0.032; // 約32ms（16kHz/512サンプル）
+  static const int SMOOTHING_WINDOW = 3; // スムージング用ウィンドウサイズ
+
+  /// 詳細分析を実行
+  static DetailedAnalysis performDetailedAnalysis({
     required List<double> recordedPitches,
     required List<double> referencePitches,
-    required Duration songDuration,
+    required ComprehensiveScore score,
   }) {
-    // ピッチ差分計算
-    final pitchDifferences = _calculatePitchDifferences(recordedPitches, referencePitches);
-    
-    // 安定性分析
-    final pitchVariance = _calculatePitchVariance(recordedPitches);
-    final stabilityOverTime = _calculateStabilityOverTime(recordedPitches);
-    
-    // タイミング分析
-    final timingPoints = _analyzeTimingPoints(recordedPitches, referencePitches, songDuration);
-    final averageTimingAccuracy = _calculateAverageTimingAccuracy(timingPoints);
-    
-    // 統計情報
-    final statistics = _generateStatistics(recordedPitches, referencePitches, pitchDifferences);
+    final pitchGraph = _generatePitchGraph(recordedPitches, referencePitches);
+    final statistics = _calculateStatistics(recordedPitches, referencePitches);
+    final strengths = _identifyStrengths(score, statistics);
+    final weaknesses = _identifyWeaknesses(score, statistics);
 
-    return AnalysisData(
-      recordedPitches: recordedPitches,
-      referencePitches: referencePitches,
-      pitchDifferences: pitchDifferences,
-      pitchVariance: pitchVariance,
-      stabilityOverTime: stabilityOverTime,
-      timingPoints: timingPoints,
-      averageTimingAccuracy: averageTimingAccuracy,
+    return DetailedAnalysis(
+      pitchGraph: pitchGraph,
       statistics: statistics,
+      strengths: strengths,
+      weaknesses: weaknesses,
     );
   }
 
-  /// ピッチ差分の計算
-  static List<double> _calculatePitchDifferences(
+  /// 音程グラフ用データを生成
+  static List<PitchPoint> _generatePitchGraph(
     List<double> recordedPitches,
     List<double> referencePitches,
   ) {
-    final differences = <double>[];
-    final minLength = math.min(recordedPitches.length, referencePitches.length);
+    final maxLength = math.max(recordedPitches.length, referencePitches.length);
+    List<PitchPoint> points = [];
 
-    for (int i = 0; i < minLength; i++) {
-      final recorded = recordedPitches[i];
-      final reference = referencePitches[i];
-
-      if (recorded > 0 && reference > 0) {
-        differences.add(recorded - reference);
-      } else {
-        differences.add(0.0); // 無音部分
-      }
-    }
-
-    return differences;
-  }
-
-  /// ピッチ分散の計算
-  static double _calculatePitchVariance(List<double> recordedPitches) {
-    final validPitches = recordedPitches.where((p) => p > 0).toList();
-    if (validPitches.length < 2) return 0.0;
-
-    final mean = validPitches.reduce((a, b) => a + b) / validPitches.length;
-    final variance = validPitches
-        .map((p) => math.pow(p - mean, 2))
-        .reduce((a, b) => a + b) / validPitches.length;
-
-    return variance;
-  }
-
-  /// 時間経過に伴う安定性の変化を分析
-  static List<double> _calculateStabilityOverTime(List<double> recordedPitches) {
-    const int windowSize = 10; // 10フレームの移動窓
-    final stabilityScores = <double>[];
-
-    for (int i = 0; i < recordedPitches.length - windowSize + 1; i++) {
-      final window = recordedPitches.sublist(i, i + windowSize);
-      final validPitches = window.where((p) => p > 0).toList();
-
-      if (validPitches.length >= 3) {
-        final mean = validPitches.reduce((a, b) => a + b) / validPitches.length;
-        final variance = validPitches
-            .map((p) => math.pow(p - mean, 2))
-            .reduce((a, b) => a + b) / validPitches.length;
-        
-        final standardDeviation = math.sqrt(variance);
-        // 安定性スコア: 標準偏差が小さいほど高スコア (0-100)
-        final stabilityScore = math.max(0.0, 100.0 - standardDeviation * 3);
-        stabilityScores.add(stabilityScore);
-      } else {
-        stabilityScores.add(0.0);
-      }
-    }
-
-    return stabilityScores;
-  }
-
-  /// タイミング分析ポイントの生成
-  static List<TimingPoint> _analyzeTimingPoints(
-    List<double> recordedPitches,
-    List<double> referencePitches,
-    Duration songDuration,
-  ) {
-    final timingPoints = <TimingPoint>[];
-    final minLength = math.min(recordedPitches.length, referencePitches.length);
-    
-    if (minLength == 0) return timingPoints;
-
-    final intervalMs = songDuration.inMilliseconds / minLength;
-
-    for (int i = 0; i < minLength; i++) {
-      final timestamp = Duration(milliseconds: (i * intervalMs).round());
-      final recorded = recordedPitches[i];
-      final reference = referencePitches[i];
-
-      // タイミング精度の計算
-      double timingAccuracy = 1.0;
-      if (recorded > 0 && reference > 0) {
-        // 音程変化の検出と同期評価
-        timingAccuracy = _calculateNoteTimingAccuracy(
-          recordedPitches, referencePitches, i
-        );
-      } else if (recorded <= 0 && reference <= 0) {
-        timingAccuracy = 1.0; // 両方とも無音なら完璧
-      } else {
-        timingAccuracy = 0.0; // 片方だけ音が出ているならタイミングずれ
+    for (int i = 0; i < maxLength; i++) {
+      final timeSeconds = i * FRAME_DURATION_SECONDS;
+      final recordedPitch = i < recordedPitches.length ? recordedPitches[i] : null;
+      final referencePitch = i < referencePitches.length ? referencePitches[i] : null;
+      
+      double? difference;
+      if (recordedPitch != null && referencePitch != null && 
+          recordedPitch > 0 && referencePitch > 0) {
+        difference = ScoringService.calculateCentDifference(referencePitch, recordedPitch);
       }
 
-      timingPoints.add(TimingPoint(
-        timestamp: timestamp,
-        expectedPitch: reference,
-        actualPitch: recorded,
-        timingAccuracy: timingAccuracy,
+      points.add(PitchPoint(
+        timeSeconds: timeSeconds,
+        recordedPitch: recordedPitch,
+        referencePitch: referencePitch,
+        difference: difference,
       ));
     }
 
-    return timingPoints;
+    return points;
   }
 
-  /// 個別ノートのタイミング精度計算
-  static double _calculateNoteTimingAccuracy(
+  /// 統計情報を計算
+  static Map<String, double> _calculateStatistics(
     List<double> recordedPitches,
     List<double> referencePitches,
-    int index,
   ) {
-    // 前後のフレームを見て音程変化のタイミングを評価
-    const int lookAround = 3;
-    final start = math.max(0, index - lookAround);
-    final end = math.min(recordedPitches.length, index + lookAround + 1);
+    Map<String, double> stats = {};
 
-    // 基準と録音の音程変化パターンを比較
-    final referencePattern = _extractPattern(referencePitches, start, end);
-    final recordedPattern = _extractPattern(recordedPitches, start, end);
+    // 基本統計
+    final validRecorded = recordedPitches.where((p) => p > 0).toList();
+    final validReference = referencePitches.where((p) => p > 0).toList();
 
-    // パターンの類似度をタイミング精度として使用
-    return _calculatePatternSimilarity(referencePattern, recordedPattern);
+    if (validRecorded.isNotEmpty) {
+      stats['recordedAverage'] = validRecorded.reduce((a, b) => a + b) / validRecorded.length;
+      stats['recordedMin'] = validRecorded.reduce(math.min);
+      stats['recordedMax'] = validRecorded.reduce(math.max);
+      stats['recordedRange'] = stats['recordedMax']! - stats['recordedMin']!;
+    }
+
+    if (validReference.isNotEmpty) {
+      stats['referenceAverage'] = validReference.reduce((a, b) => a + b) / validReference.length;
+      stats['referenceMin'] = validReference.reduce(math.min);
+      stats['referenceMax'] = validReference.reduce(math.max);
+      stats['referenceRange'] = stats['referenceMax']! - stats['referenceMin']!;
+    }
+
+    // カバレッジ統計
+    stats['pitchCoverage'] = validRecorded.length / recordedPitches.length;
+    stats['songCoverage'] = recordedPitches.length / referencePitches.length;
+
+    // 精度統計
+    if (validRecorded.isNotEmpty && validReference.isNotEmpty) {
+      final minLength = math.min(validRecorded.length, validReference.length);
+      double totalAbsError = 0.0;
+      double totalSquaredError = 0.0;
+      int perfectCount = 0;
+      int goodCount = 0;
+
+      for (int i = 0; i < minLength; i++) {
+        final error = (validRecorded[i] - validReference[i]).abs();
+        totalAbsError += error;
+        totalSquaredError += error * error;
+
+        if (error <= ScoringService.PERFECT_PITCH_THRESHOLD) perfectCount++;
+        if (error <= ScoringService.GOOD_PITCH_THRESHOLD) goodCount++;
+      }
+
+      stats['meanAbsoluteError'] = totalAbsError / minLength;
+      stats['rootMeanSquaredError'] = math.sqrt(totalSquaredError / minLength);
+      stats['perfectPitchRatio'] = perfectCount / minLength;
+      stats['goodPitchRatio'] = goodCount / minLength;
+    }
+
+    // 安定性統計
+    if (validRecorded.length > 1) {
+      List<double> variations = [];
+      for (int i = 1; i < validRecorded.length; i++) {
+        variations.add((validRecorded[i] - validRecorded[i - 1]).abs());
+      }
+      stats['averageVariation'] = variations.reduce((a, b) => a + b) / variations.length;
+      stats['maxVariation'] = variations.reduce(math.max);
+    }
+
+    return stats;
   }
 
-  /// 音程変化パターンの抽出
-  static List<double> _extractPattern(List<double> pitches, int start, int end) {
-    final pattern = <double>[];
-    for (int i = start; i < end - 1; i++) {
-      if (i + 1 < pitches.length) {
-        final current = pitches[i];
-        final next = pitches[i + 1];
-        if (current > 0 && next > 0) {
-          pattern.add(next - current); // 音程変化量
-        } else {
-          pattern.add(0.0);
+  /// 強みを特定
+  static List<String> _identifyStrengths(
+    ComprehensiveScore score,
+    Map<String, double> statistics,
+  ) {
+    List<String> strengths = [];
+
+    // 音程精度の強み
+    if (score.pitchAccuracy >= 85) {
+      strengths.add('音程の精度が非常に高いです');
+    } else if (score.pitchAccuracy >= 70) {
+      strengths.add('音程が安定しています');
+    }
+
+    // 完璧な音程の割合
+    final perfectRatio = statistics['perfectPitchRatio'] ?? 0.0;
+    if (perfectRatio >= 0.7) {
+      strengths.add('正確な音程で歌えている部分が多いです');
+    }
+
+    // 安定性の強み
+    if (score.stability >= 80) {
+      strengths.add('音程が非常に安定しています');
+    } else if (score.stability >= 65) {
+      strengths.add('ブレが少なく歌えています');
+    }
+
+    // タイミングの強み
+    if (score.timing >= 80) {
+      strengths.add('タイミングが正確です');
+    }
+
+    // カバレッジの強み
+    final coverage = statistics['songCoverage'] ?? 0.0;
+    if (coverage >= 0.9) {
+      strengths.add('楽曲全体を通して歌えています');
+    }
+
+    // 音域の強み
+    final recordedRange = statistics['recordedRange'] ?? 0.0;
+    final referenceRange = statistics['referenceRange'] ?? 0.0;
+    if (recordedRange >= referenceRange * 0.8) {
+      strengths.add('幅広い音域で歌えています');
+    }
+
+    if (strengths.isEmpty) {
+      strengths.add('歌唱にチャレンジする気持ちが素晴らしいです');
+    }
+
+    return strengths;
+  }
+
+  /// 弱点・改善点を特定
+  static List<String> _identifyWeaknesses(
+    ComprehensiveScore score,
+    Map<String, double> statistics,
+  ) {
+    List<String> weaknesses = [];
+
+    // 音程精度の弱点
+    if (score.pitchAccuracy < 60) {
+      weaknesses.add('音程の精度に改善の余地があります');
+    }
+
+    final meanError = statistics['meanAbsoluteError'] ?? 0.0;
+    if (meanError > ScoringService.GOOD_PITCH_THRESHOLD) {
+      weaknesses.add('基準音程からのズレが大きい傾向があります');
+    }
+
+    // 安定性の弱点
+    if (score.stability < 60) {
+      weaknesses.add('音程の安定性を改善しましょう');
+    }
+
+    final avgVariation = statistics['averageVariation'] ?? 0.0;
+    if (avgVariation > ScoringService.UNSTABLE_VARIATION_THRESHOLD) {
+      weaknesses.add('音程の変動が大きすぎます');
+    }
+
+    // タイミングの弱点
+    if (score.timing < 60) {
+      weaknesses.add('タイミングの調整が必要です');
+    }
+
+    // カバレッジの弱点
+    final coverage = statistics['songCoverage'] ?? 0.0;
+    if (coverage < 0.7) {
+      weaknesses.add('楽曲の後半部分も歌ってみましょう');
+    }
+
+    final pitchCoverage = statistics['pitchCoverage'] ?? 0.0;
+    if (pitchCoverage < 0.6) {
+      weaknesses.add('声を出せていない部分が多くあります');
+    }
+
+    return weaknesses;
+  }
+
+  /// グラフ表示用にデータをスムージング
+  static List<PitchPoint> smoothPitchGraph(List<PitchPoint> originalPoints) {
+    if (originalPoints.length <= SMOOTHING_WINDOW) return originalPoints;
+
+    List<PitchPoint> smoothedPoints = [];
+
+    for (int i = 0; i < originalPoints.length; i++) {
+      final start = math.max(0, i - SMOOTHING_WINDOW ~/ 2);
+      final end = math.min(originalPoints.length - 1, i + SMOOTHING_WINDOW ~/ 2);
+
+      double recordedSum = 0.0;
+      double referenceSum = 0.0;
+      int recordedCount = 0;
+      int referenceCount = 0;
+
+      for (int j = start; j <= end; j++) {
+        final point = originalPoints[j];
+        if (point.recordedPitch != null && point.recordedPitch! > 0) {
+          recordedSum += point.recordedPitch!;
+          recordedCount++;
+        }
+        if (point.referencePitch != null && point.referencePitch! > 0) {
+          referenceSum += point.referencePitch!;
+          referenceCount++;
         }
       }
-    }
-    return pattern;
-  }
 
-  /// パターン類似度の計算
-  static double _calculatePatternSimilarity(List<double> pattern1, List<double> pattern2) {
-    if (pattern1.isEmpty || pattern2.isEmpty) return 0.0;
-    
-    final minLength = math.min(pattern1.length, pattern2.length);
-    double similarity = 0.0;
+      final recordedAvg = recordedCount > 0 ? recordedSum / recordedCount : null;
+      final referenceAvg = referenceCount > 0 ? referenceSum / referenceCount : null;
 
-    for (int i = 0; i < minLength; i++) {
-      final diff = (pattern1[i] - pattern2[i]).abs();
-      // 差が少ないほど高い類似度
-      similarity += math.max(0.0, 1.0 - (diff / 50.0)); // 50Hz差で類似度0
-    }
-
-    return minLength > 0 ? similarity / minLength : 0.0;
-  }
-
-  /// 平均タイミング精度の計算
-  static double _calculateAverageTimingAccuracy(List<TimingPoint> timingPoints) {
-    if (timingPoints.isEmpty) return 0.0;
-
-    final totalAccuracy = timingPoints
-        .map((tp) => tp.timingAccuracy)
-        .reduce((a, b) => a + b);
-
-    return totalAccuracy / timingPoints.length;
-  }
-
-  /// 統計情報の生成
-  static AnalysisStatistics _generateStatistics(
-    List<double> recordedPitches,
-    List<double> referencePitches,
-    List<double> pitchDifferences,
-  ) {
-    final minLength = math.min(recordedPitches.length, referencePitches.length);
-    int totalNotes = 0;
-    int accurateNotes = 0;
-    final validDifferences = <double>[];
-
-    for (int i = 0; i < minLength; i++) {
-      if (recordedPitches[i] > 0 && referencePitches[i] > 0) {
-        totalNotes++;
-        final diff = pitchDifferences[i].abs();
-        validDifferences.add(diff);
-        
-        if (diff <= 30.0) { // 30Hz以内で正確とみなす
-          accurateNotes++;
-        }
+      double? difference;
+      if (recordedAvg != null && referenceAvg != null) {
+        difference = ScoringService.calculateCentDifference(referenceAvg, recordedAvg);
       }
+
+      smoothedPoints.add(PitchPoint(
+        timeSeconds: originalPoints[i].timeSeconds,
+        recordedPitch: recordedAvg,
+        referencePitch: referenceAvg,
+        difference: difference,
+      ));
     }
 
-    final accuracyRate = totalNotes > 0 ? accurateNotes / totalNotes : 0.0;
-    
-    double averageDiff = 0.0;
-    double maxDiff = 0.0;
-    double minDiff = 0.0;
-
-    if (validDifferences.isNotEmpty) {
-      averageDiff = validDifferences.reduce((a, b) => a + b) / validDifferences.length;
-      maxDiff = validDifferences.reduce(math.max);
-      minDiff = validDifferences.reduce(math.min);
-    }
-
-    return AnalysisStatistics(
-      totalNotes: totalNotes,
-      accurateNotes: accurateNotes,
-      accuracyRate: accuracyRate,
-      averagePitchDifference: averageDiff,
-      maxPitchDifference: maxDiff,
-      minPitchDifference: minDiff,
-    );
+    return smoothedPoints;
   }
 }
