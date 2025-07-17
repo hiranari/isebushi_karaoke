@@ -1,188 +1,206 @@
-/// Phase 3: 歌唱結果を格納する包括的なデータモデル
-/// 
-/// 単一責任原則に従い、歌唱結果に関する全ての情報を管理
-/// 拡張性とテスト容易性を考慮した設計
+/// 歌唱結果の総合データモデル
+/// Phase 3で追加: 多角的評価指標による詳細スコアリング
 class SongResult {
   final String songTitle;
   final DateTime recordedAt;
-  final Duration songDuration;
-  
-  // 総合スコア
-  final double totalScore;
-  
-  // 個別スコア (Phase 3 要件: 70%, 20%, 10%)
-  final ScoreBreakdown scoreBreakdown;
-  
-  // 詳細分析データ
-  final AnalysisData analysisData;
-  
-  // フィードバック・改善提案
-  final FeedbackData feedbackData;
+  final List<double> recordedPitches;
+  final List<double> referencePitches;
+  final ComprehensiveScore comprehensiveScore;
+  final DetailedAnalysis detailedAnalysis;
+  final List<ImprovementSuggestion> improvementSuggestions;
 
   const SongResult({
     required this.songTitle,
     required this.recordedAt,
-    required this.songDuration,
-    required this.totalScore,
-    required this.scoreBreakdown,
-    required this.analysisData,
-    required this.feedbackData,
+    required this.recordedPitches,
+    required this.referencePitches,
+    required this.comprehensiveScore,
+    required this.detailedAnalysis,
+    required this.improvementSuggestions,
   });
 
-  /// スコアが優秀かどうかの判定
-  bool get isExcellent => totalScore >= 90.0;
-  
-  /// スコアが良好かどうかの判定
-  bool get isGood => totalScore >= 75.0;
-  
-  /// スコアレベルの文字列表現
-  String get scoreLevel {
-    if (isExcellent) return '優秀';
-    if (isGood) return '良好';
-    if (totalScore >= 60.0) return '標準';
-    return '要練習';
+  /// JSONからSongResultを生成
+  factory SongResult.fromJson(Map<String, dynamic> json) {
+    return SongResult(
+      songTitle: json['songTitle'],
+      recordedAt: DateTime.parse(json['recordedAt']),
+      recordedPitches: List<double>.from(json['recordedPitches']),
+      referencePitches: List<double>.from(json['referencePitches']),
+      comprehensiveScore: ComprehensiveScore.fromJson(json['comprehensiveScore']),
+      detailedAnalysis: DetailedAnalysis.fromJson(json['detailedAnalysis']),
+      improvementSuggestions: (json['improvementSuggestions'] as List)
+          .map((s) => ImprovementSuggestion.fromJson(s))
+          .toList(),
+    );
+  }
+
+  /// SongResultをJSONに変換
+  Map<String, dynamic> toJson() {
+    return {
+      'songTitle': songTitle,
+      'recordedAt': recordedAt.toIso8601String(),
+      'recordedPitches': recordedPitches,
+      'referencePitches': referencePitches,
+      'comprehensiveScore': comprehensiveScore.toJson(),
+      'detailedAnalysis': detailedAnalysis.toJson(),
+      'improvementSuggestions': improvementSuggestions.map((s) => s.toJson()).toList(),
+    };
   }
 }
 
-/// 個別スコアの内訳 (Phase 3 要件に対応)
-class ScoreBreakdown {
-  // 音程精度スコア (70%の重み)
-  final double pitchAccuracy;
-  final double pitchAccuracyWeighted;
-  
-  // 安定性スコア (20%の重み)  
-  final double stability;
-  final double stabilityWeighted;
-  
-  // タイミングスコア (10%の重み)
-  final double timing;
-  final double timingWeighted;
+/// 総合スコア（音程精度70% + 安定性20% + タイミング10%）
+class ComprehensiveScore {
+  final double overall; // 0-100の総合スコア
+  final double pitchAccuracy; // 音程精度スコア（0-100）
+  final double stability; // 安定性スコア（0-100）
+  final double timing; // タイミングスコア（0-100）
 
-  const ScoreBreakdown({
+  // 重み配分
+  static const double PITCH_WEIGHT = 0.7;
+  static const double STABILITY_WEIGHT = 0.2;
+  static const double TIMING_WEIGHT = 0.1;
+
+  const ComprehensiveScore({
+    required this.overall,
     required this.pitchAccuracy,
     required this.stability,
     required this.timing,
-  }) : pitchAccuracyWeighted = pitchAccuracy * 0.7,
-       stabilityWeighted = stability * 0.2,
-       timingWeighted = timing * 0.1;
+  });
 
-  /// 重み付き総合スコアの計算
-  double get totalWeightedScore => 
-      pitchAccuracyWeighted + stabilityWeighted + timingWeighted;
+  /// 各スコアから総合スコアを計算
+  factory ComprehensiveScore.calculate({
+    required double pitchAccuracy,
+    required double stability,
+    required double timing,
+  }) {
+    final overall = (pitchAccuracy * PITCH_WEIGHT) +
+        (stability * STABILITY_WEIGHT) +
+        (timing * TIMING_WEIGHT);
+
+    return ComprehensiveScore(
+      overall: overall,
+      pitchAccuracy: pitchAccuracy,
+      stability: stability,
+      timing: timing,
+    );
+  }
+
+  factory ComprehensiveScore.fromJson(Map<String, dynamic> json) {
+    return ComprehensiveScore(
+      overall: json['overall'].toDouble(),
+      pitchAccuracy: json['pitchAccuracy'].toDouble(),
+      stability: json['stability'].toDouble(),
+      timing: json['timing'].toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'overall': overall,
+      'pitchAccuracy': pitchAccuracy,
+      'stability': stability,
+      'timing': timing,
+    };
+  }
 }
 
-/// 詳細分析データ
-class AnalysisData {
-  // ピッチ分析
-  final List<double> recordedPitches;
-  final List<double> referencePitches;
-  final List<double> pitchDifferences;
-  
-  // 安定性分析
-  final double pitchVariance;
-  final List<double> stabilityOverTime;
-  
-  // タイミング分析
-  final List<TimingPoint> timingPoints;
-  final double averageTimingAccuracy;
-  
-  // 統計情報
-  final AnalysisStatistics statistics;
+/// 詳細分析結果
+class DetailedAnalysis {
+  final List<PitchPoint> pitchGraph; // 音程グラフ用データ
+  final Map<String, double> statistics; // 統計情報
+  final List<String> strengths; // 良かった点
+  final List<String> weaknesses; // 改善点
 
-  const AnalysisData({
-    required this.recordedPitches,
-    required this.referencePitches,
-    required this.pitchDifferences,
-    required this.pitchVariance,
-    required this.stabilityOverTime,
-    required this.timingPoints,
-    required this.averageTimingAccuracy,
+  const DetailedAnalysis({
+    required this.pitchGraph,
     required this.statistics,
-  });
-}
-
-/// タイミング分析のデータポイント
-class TimingPoint {
-  final Duration timestamp;
-  final double expectedPitch;
-  final double actualPitch;
-  final double timingAccuracy; // 0.0 - 1.0
-
-  const TimingPoint({
-    required this.timestamp,
-    required this.expectedPitch,
-    required this.actualPitch,
-    required this.timingAccuracy,
-  });
-}
-
-/// 統計情報
-class AnalysisStatistics {
-  final int totalNotes;
-  final int accurateNotes;
-  final double accuracyRate;
-  final double averagePitchDifference;
-  final double maxPitchDifference;
-  final double minPitchDifference;
-
-  const AnalysisStatistics({
-    required this.totalNotes,
-    required this.accurateNotes,
-    required this.accuracyRate,
-    required this.averagePitchDifference,
-    required this.maxPitchDifference,
-    required this.minPitchDifference,
-  });
-}
-
-/// フィードバック・改善提案データ
-class FeedbackData {
-  // 強みの分析
-  final List<String> strengths;
-  
-  // 改善ポイント
-  final List<ImprovementPoint> improvementPoints;
-  
-  // 具体的なアドバイス
-  final List<String> actionableAdvice;
-  
-  // 練習推奨エリア
-  final List<PracticeArea> practiceAreas;
-
-  const FeedbackData({
     required this.strengths,
-    required this.improvementPoints,
-    required this.actionableAdvice,
-    required this.practiceAreas,
+    required this.weaknesses,
   });
+
+  factory DetailedAnalysis.fromJson(Map<String, dynamic> json) {
+    return DetailedAnalysis(
+      pitchGraph: (json['pitchGraph'] as List)
+          .map((p) => PitchPoint.fromJson(p))
+          .toList(),
+      statistics: Map<String, double>.from(json['statistics']),
+      strengths: List<String>.from(json['strengths']),
+      weaknesses: List<String>.from(json['weaknesses']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'pitchGraph': pitchGraph.map((p) => p.toJson()).toList(),
+      'statistics': statistics,
+      'strengths': strengths,
+      'weaknesses': weaknesses,
+    };
+  }
 }
 
-/// 改善ポイント
-class ImprovementPoint {
+/// 音程グラフの1ポイント
+class PitchPoint {
+  final double timeSeconds;
+  final double? recordedPitch;
+  final double? referencePitch;
+  final double? difference; // セント単位での差
+
+  const PitchPoint({
+    required this.timeSeconds,
+    this.recordedPitch,
+    this.referencePitch,
+    this.difference,
+  });
+
+  factory PitchPoint.fromJson(Map<String, dynamic> json) {
+    return PitchPoint(
+      timeSeconds: json['timeSeconds'].toDouble(),
+      recordedPitch: json['recordedPitch']?.toDouble(),
+      referencePitch: json['referencePitch']?.toDouble(),
+      difference: json['difference']?.toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'timeSeconds': timeSeconds,
+      'recordedPitch': recordedPitch,
+      'referencePitch': referencePitch,
+      'difference': difference,
+    };
+  }
+}
+
+/// 改善提案
+class ImprovementSuggestion {
   final String category; // 'pitch', 'stability', 'timing'
-  final String description;
-  final double severity; // 0.0 - 1.0 (低い値ほど改善が必要)
-  final Duration? timestamp; // 特定の時間帯の問題の場合
-
-  const ImprovementPoint({
-    required this.category,
-    required this.description,
-    required this.severity,
-    this.timestamp,
-  });
-}
-
-/// 練習推奨エリア
-class PracticeArea {
   final String title;
   final String description;
-  final List<String> exercises;
-  final Duration? focusTimeRange;
+  final int priority; // 1-3, 1が最重要
 
-  const PracticeArea({
+  const ImprovementSuggestion({
+    required this.category,
     required this.title,
     required this.description,
-    required this.exercises,
-    this.focusTimeRange,
+    required this.priority,
   });
+
+  factory ImprovementSuggestion.fromJson(Map<String, dynamic> json) {
+    return ImprovementSuggestion(
+      category: json['category'],
+      title: json['title'],
+      description: json['description'],
+      priority: json['priority'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'category': category,
+      'title': title,
+      'description': description,
+      'priority': priority,
+    };
+  }
 }
