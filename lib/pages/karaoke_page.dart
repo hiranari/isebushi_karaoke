@@ -4,12 +4,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
+import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:provider/provider.dart';
 import '../services/pitch_detection_service.dart';
 import '../services/cache_service.dart';
-import '../services/pitch_comparison_service.dart';
-import '../models/pitch_comparison_result.dart';
+import '../providers/song_result_provider.dart';
+import '../widgets/song_result_widget.dart';
 
 class KaraokePage extends StatefulWidget {
   const KaraokePage({super.key});
@@ -21,6 +23,7 @@ class _KaraokePageState extends State<KaraokePage> {
   final AudioPlayer _player = AudioPlayer();
   final AudioRecorder _recorder = AudioRecorder();
   StreamSubscription<Uint8List>? _pcmStreamSub;
+  PitchDetector? _pitchDetector;
   bool _isRecording = false;
   bool _isLoadingReferencePitches = false;
   double? _currentPitch;
@@ -31,10 +34,6 @@ class _KaraokePageState extends State<KaraokePage> {
 
   // Phase 1で追加
   final PitchDetectionService _pitchDetectionService = PitchDetectionService();
-  
-  // Phase 2で追加
-  final PitchComparisonService _pitchComparisonService = PitchComparisonService();
-  PitchComparisonResult? _lastComparisonResult;
 
   @override
   void didChangeDependencies() {
@@ -173,81 +172,80 @@ class _KaraokePageState extends State<KaraokePage> {
     }
 
     try {
-      // 録音開始
       await _recorder.start(
-        const RecordConfig(
+        config: const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
           sampleRate: 16000,
           numChannels: 1,
+          bitRate: 16000 * 16,
         ),
-        path: 'my_voice.wav', // 必須パラメータを追加
+        path: 'my_voice.wav',
       );
 
-      // Timer を使用してピッチ検出を定期実行
-      Timer.periodic(const Duration(milliseconds: 100), (timer) async {
-        if (!_isRecording) {
-          timer.cancel();
-          return;
-        }
+      _pitchDetector = PitchDetector(16000, 1024);
 
-      try {
-        // 現在の録音ストリームから振幅データを取得
-        final amplitude = await _recorder.getAmplitude();
-        
-        // 実際のピッチ検出は録音停止後にファイルから行う
-        // リアルタイム表示用のダミーピッチ（振幅ベース）
-        if (amplitude.current > -30) { // ある程度の音量がある場合
-          // 振幅から推定ピッチを計算（簡易実装）
-          final estimatedPitch = _estimatePitchFromAmplitude(amplitude.current);
+      final stream = await _recorder.recordStream();
+      _pcmStreamSub = stream.listen((buffer) {
+        if (_pitchDetector != null) {
+          final samples = Int16List.view(buffer.buffer).map((e) => e.toDouble()).toList();
+          final result = _pitchDetector!.getPitch(samples);
           setState(() {
-            _currentPitch = estimatedPitch;
-            if (_currentPitch != null && _currentPitch! > 0) {
+            _currentPitch = result.pitched ? result.pitch : null;
+            if (_isRecording && _currentPitch != null && _currentPitch! > 0) {
               _recordedPitches.add(_currentPitch!);
             }
           });
-        } else {
-          setState(() => _currentPitch = null);
         }
-      } catch (e) {
-        // エラーは無視してタイマー継続
-      }
-    });
+      });
 
-    setState(() => _isRecording = true);
+      setState(() => _isRecording = true);
     } catch (e) {
-      _showSnackBar('録音の開始に失敗しました: $e');
+      _showSnackBar('録音の開始に失敗しました');
     }
   }
-
-  /// 振幅からピッチを推定（簡易実装）
-/// 実際のピッチ検出はPhase 2で改善予定
-double? _estimatePitchFromAmplitude(double amplitude) {
-  // TODO: Phase 2でより正確なリアルタイムピッチ検出を実装
-  // 現在は振幅ベースの簡易推定
-  if (amplitude < -40) return null; // 音量が小さすぎる
-  
-  // 振幅を基にした簡易ピッチ推定（200-800Hzの範囲）
-  final normalizedAmp = (amplitude + 60) / 60; // -60dB～0dBを0～1に正規化
-  final estimatedPitch = 200 + (normalizedAmp * 600); // 200～800Hz
-  
-  return estimatedPitch.clamp(200.0, 800.0);
-}
 
   Future<void> _stopRecording() async {
     try {
-      final path = await _recorder.stop();
+      await _recorder.stop();
+      await _pcmStreamSub?.cancel();
       setState(() => _isRecording = false);
       
-      if (path != null) {
-        // TODO: Phase 2で録音ファイルからの正確なピッチ検出を実装
-        _showSnackBar('録音を停止しました。ファイル: $path');
-      }
+      // Phase 3: 歌唱終了後、詳細な分析とスコア計算を実行
+      await _calculateSongResult();
     } catch (e) {
-      _showSnackBar('録音の停止に失敗しました: $e');
+      _showSnackBar('録音の停止に失敗しました');
     }
   }
 
-  double _calculateScore() {
+  /// Phase 3: 包括的な歌唱結果の計算
+  Future<void> _calculateSongResult() async {
+    if (_referencePitches.isEmpty || _recordedPitches.isEmpty) {
+      _showSnackBar('録音データまたは基準データが不足しています');
+      return;
+    }
+
+    final provider = Provider.of<SongResultProvider>(context, listen: false);
+    
+    try {
+      // 楽曲の推定時間（ピッチデータから推定）
+      const double frameRate = 10.0; // 仮定: 10fps
+      final duration = Duration(
+        milliseconds: (_referencePitches.length / frameRate * 1000).round(),
+      );
+
+      await provider.calculateSongResult(
+        songTitle: selectedSong?['title'] ?? '不明な楽曲',
+        recordedPitches: List.from(_recordedPitches),
+        referencePitches: List.from(_referencePitches),
+        songDuration: duration,
+      );
+    } catch (e) {
+      _showSnackBar('結果の計算中にエラーが発生しました: $e');
+    }
+  }
+
+  /// Phase 2との互換性のための従来スコア計算（デバッグ用）
+  double _calculateLegacyScore() {
     if (_referencePitches.isEmpty || _recordedPitches.isEmpty) return 0;
 
     final minLen = _referencePitches.length < _recordedPitches.length
@@ -263,276 +261,177 @@ double? _estimatePitchFromAmplitude(double amplitude) {
     return (matchCount / minLen) * 100;
   }
 
-  /// Phase 2: 高精度ピッチ比較の実行
-  Future<void> _performDetailedComparison() async {
-    if (_referencePitches.isEmpty || _recordedPitches.isEmpty) {
-      _showSnackBar('比較するデータが不足しています');
-      return;
-    }
-
-    setState(() => _analysisStatus = 'high precision 精密ピッチ比較中...');
-
-    try {
-      final result = await _pitchComparisonService.compareWithDTW(
-        referencePitches: _referencePitches,
-        singingPitches: _recordedPitches,
-      );
-
-      setState(() {
-        _lastComparisonResult = result;
-        _analysisStatus = '精密比較完了';
-      });
-
-      _showSnackBar('精密ピッチ比較が完了しました');
-    } catch (e) {
-      setState(() => _analysisStatus = '精密比較エラー');
-      _showSnackBar('精密比較でエラーが発生しました: $e');
-      print('精密比較エラー: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    double score = _calculateScore();
+    // Phase 2との互換性のための従来スコア（デバッグ情報として残す）
+    double legacyScore = _calculateLegacyScore();
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(selectedSong?['title'] ?? 'カラオケ'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _clearCache, tooltip: 'キャッシュクリア'),
+          IconButton(
+            icon: const Icon(Icons.refresh), 
+            onPressed: _clearCache, 
+            tooltip: 'キャッシュクリア'
+          ),
+          // Phase 3: 結果リセット機能
+          Consumer<SongResultProvider>(
+            builder: (context, provider, child) {
+              if (provider.currentResult != null) {
+                return IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => provider.clearResult(),
+                  tooltip: '結果をクリア',
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // ピッチデータ読み込み状態の表示
-              if (_isLoadingReferencePitches)
-                Column(
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 10),
-                    Text(_analysisStatus),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-
-              // Phase 1で追加: 解析状況表示
-              if (!_isLoadingReferencePitches && _analysisStatus.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Text('状態: $_analysisStatus', style: TextStyle(color: Colors.blue[800])),
-                ),
-
-              // 基本コントロール
-              ElevatedButton(onPressed: _playAudio, child: const Text('音源を再生')),
-              const SizedBox(height: 10),
-
-              if (!kIsWeb)
-                ElevatedButton(
-                  onPressed: _isRecording ? _stopRecording : _startRecording,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isRecording ? Colors.red : Colors.green,
-                  ),
-                  child: Text(_isRecording ? '録音停止' : '録音開始'),
-                ),
-
-              if (kIsWeb) const Text('Webでは録音機能は利用できません'),
-
-              const SizedBox(height: 20),
-
-              // Phase 2: 精密比較ボタン
-              if (_referencePitches.isNotEmpty && _recordedPitches.isNotEmpty)
-                ElevatedButton(
-                  onPressed: _performDetailedComparison,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('精密ピッチ比較'),
-                ),
-
-              const SizedBox(height: 20),
-
-              // 基本情報表示
-              _buildBasicInfoCard(score),
-
-              const SizedBox(height: 20),
-
-              // Phase 2: 詳細比較結果表示
-              if (_lastComparisonResult != null) ...[
-                _buildDetailedComparisonResults(),
-                const SizedBox(height: 20),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 基本情報カード
-  Widget _buildBasicInfoCard(double score) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Text(
-              '基本情報',
-              style: Theme.of(context).textTheme.titleLarge,
+            // コントロール部分
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // ピッチデータ読み込み状態の表示
+                  if (_isLoadingReferencePitches)
+                    Column(
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 10),
+                        Text(_analysisStatus),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+
+                  // Phase 1で追加: 解析状況表示
+                  if (!_isLoadingReferencePitches && _analysisStatus.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Text(
+                        '状態: $_analysisStatus', 
+                        style: TextStyle(color: Colors.blue[800]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+
+                  // 操作ボタン
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _playAudio,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('音源再生'),
+                      ),
+                      
+                      if (!kIsWeb)
+                        ElevatedButton.icon(
+                          onPressed: _isRecording ? _stopRecording : _startRecording,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isRecording ? Colors.red : Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                          label: Text(_isRecording ? '録音停止' : '録音開始'),
+                        ),
+                    ],
+                  ),
+
+                  if (kIsWeb) 
+                    Container(
+                      margin: const EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange[200]!),
+                      ),
+                      child: const Text(
+                        'Webでは録音機能は利用できません',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // リアルタイムピッチ表示
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          '現在のピッチ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${_currentPitch?.toStringAsFixed(2) ?? "---"} Hz',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // デバッグ情報（開発用）
+                  if (kDebugMode)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'デバッグ情報',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text('従来スコア: ${legacyScore.toStringAsFixed(1)} 点'),
+                          Text('基準ピッチ数: ${_referencePitches.length}'),
+                          Text('録音ピッチ数: ${_recordedPitches.length}'),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Text('現在のピッチ: ${_currentPitch?.toStringAsFixed(2) ?? "-"} Hz'),
-            Text('基本スコア: ${score.toStringAsFixed(1)} 点'),
-            Text('基準ピッチ数: ${_referencePitches.length}'),
-            Text('録音ピッチ数: ${_recordedPitches.length}'),
+
+            // Phase 3: 歌唱結果表示ウィジェット
+            const SongResultWidget(),
           ],
         ),
       ),
-    );
-  }
-
-  /// Phase 2: 詳細比較結果表示
-  Widget _buildDetailedComparisonResults() {
-    final result = _lastComparisonResult!;
-    final summary = result.getSummary();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '精密比較結果 (Phase 2)',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 15),
-
-            // 総合スコア
-            _buildScoreRow('総合スコア', result.overallScore, Colors.blue),
-            
-            // ピッチ精度
-            _buildScoreRow('平均セント差', summary['averageCentDifference'], Colors.orange),
-            
-            // 安定性
-            _buildScoreRow('ピッチ安定性', result.stabilityAnalysis.stabilityScore, Colors.green),
-            
-            // タイミング
-            _buildScoreRow('タイミング精度', result.timingAnalysis.accuracyScore, Colors.purple),
-
-            const SizedBox(height: 15),
-
-            // ビブラート情報
-            _buildVibratoInfo(result.vibratoAnalysis),
-
-            const SizedBox(height: 15),
-
-            // 詳細統計
-            _buildDetailedStats(result),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// スコア行表示
-  Widget _buildScoreRow(String label, double value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              value.toStringAsFixed(1),
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// ビブラート情報表示
-  Widget _buildVibratoInfo(VibratoAnalysis analysis) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: analysis.vibratoDetected ? Colors.green[50] : Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: analysis.vibratoDetected ? Colors.green[200]! : Colors.grey[300]!,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                analysis.vibratoDetected ? Icons.music_note : Icons.music_off,
-                color: analysis.vibratoDetected ? Colors.green : Colors.grey,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'ビブラート ${analysis.vibratoDetected ? "検出" : "未検出"}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: analysis.vibratoDetected ? Colors.green[800] : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          if (analysis.vibratoDetected) ...[
-            const SizedBox(height: 8),
-            Text('レート: ${analysis.vibratoRate.toStringAsFixed(1)} Hz'),
-            Text('深さ: ${analysis.vibratoDepth.toStringAsFixed(1)} cents'),
-            Text('規則性: ${analysis.vibratoRegularityScore.toStringAsFixed(1)}%'),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// 詳細統計表示
-  Widget _buildDetailedStats(PitchComparisonResult result) {
-    return ExpansionTile(
-      title: const Text('詳細統計'),
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('アライメント済みピッチ数: ${result.alignedPitches.length}'),
-              Text('不安定区間数: ${result.stabilityAnalysis.unstableRegionCount}'),
-              Text('最大セント差: ${result.centDifferences.isEmpty ? "N/A" : result.centDifferences.map((d) => d.abs()).reduce((a, b) => a > b ? a : b).toStringAsFixed(1)}'),
-              Text('タイミング遅延数: ${result.timingAnalysis.significantDelayCount}'),
-              Text('最大時間ずれ: ${result.timingAnalysis.maxTimeOffset.toStringAsFixed(1)} ms'),
-              const SizedBox(height: 8),
-              Text('解析日時: ${result.analyzedAt.toString().substring(0, 19)}'),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
