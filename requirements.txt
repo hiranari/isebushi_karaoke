@@ -1,0 +1,12 @@
+# Python dependencies for CI workflow demonstration
+# This file is created to support the GitHub Actions CI workflow
+# even though this is primarily a Flutter project
+
+# Common development tools
+pytest>=7.0.0
+flake8>=5.0.0
+black>=22.0.0
+
+# If this were a Python project, dependencies would be listed here
+# requests>=2.28.0
+# numpy>=1.21.0
