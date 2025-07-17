@@ -35,7 +35,7 @@ class ProgressiveScoreDisplay extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -202,7 +202,7 @@ class ProgressiveScoreDisplay extends StatelessWidget {
               const SizedBox(height: 4),
               LinearProgressIndicator(
                 value: score / 100,
-                backgroundColor: Colors.white.withOpacity(0.3),
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
                 valueColor: AlwaysStoppedAnimation<Color>(
                   _getColorForScore(score),
                 ),
@@ -222,7 +222,7 @@ class ProgressiveScoreDisplay extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -272,13 +272,13 @@ class ProgressiveScoreDisplay extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // ヘッダー
-        Row(
+        const Row(
           children: [
-            const Icon(Icons.lightbulb, color: Colors.white),
-            const SizedBox(width: 8),
+            Icon(Icons.lightbulb, color: Colors.white),
+            SizedBox(width: 8),
             Text(
               '改善アドバイス',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -311,7 +311,7 @@ class ProgressiveScoreDisplay extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

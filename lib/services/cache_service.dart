@@ -5,10 +5,10 @@ import '../models/audio_analysis_result.dart';
 
 /// ピッチ検出結果のキャッシュを管理するサービスクラス
 class CacheService {
-  static const String CACHE_DIRECTORY = 'pitch_cache';
-  static const String CACHE_FILE_EXTENSION = '.json';
-  static const String CACHE_VERSION = '1.0';
-  static const int MAX_CACHE_AGE_DAYS = 30;
+  static const String cacheDirectory = 'pitch_cache';
+  static const String cacheFileExtension = '.json';
+  static const String cacheVersion = '1.0';
+  static const int maxCacheAgeDays = 30;
 
   /// キャッシュファイルのパスを生成
   ///
@@ -16,7 +16,7 @@ class CacheService {
   /// 戻り値: キャッシュファイルのパス
   static Future<String> _getCacheFilePath(String assetPath) async {
     final directory = await getApplicationDocumentsDirectory();
-    final cacheDir = Directory('${directory.path}/$CACHE_DIRECTORY');
+    final cacheDir = Directory('${directory.path}/$cacheDirectory');
 
     // キャッシュディレクトリが存在しない場合は作成
     if (!await cacheDir.exists()) {
@@ -25,7 +25,7 @@ class CacheService {
 
     // ファイル名を生成（パスをハッシュ化して安全なファイル名にする）
     final fileName = assetPath.hashCode.abs().toString();
-    return '${cacheDir.path}/$fileName$CACHE_FILE_EXTENSION';
+    return '${cacheDir.path}/$fileName$cacheFileExtension';
   }
 
   /// キャッシュからピッチデータを読み込み
@@ -45,7 +45,7 @@ class CacheService {
       final fileStat = await cacheFile.stat();
       final age = DateTime.now().difference(fileStat.modified).inDays;
 
-      if (age > MAX_CACHE_AGE_DAYS) {
+      if (age > maxCacheAgeDays) {
         // 古いキャッシュは削除
         await cacheFile.delete();
         return null;
@@ -55,7 +55,7 @@ class CacheService {
       final jsonData = jsonDecode(jsonString);
 
       // バージョンチェック
-      if (jsonData['version'] != CACHE_VERSION) {
+      if (jsonData['version'] != cacheVersion) {
         // バージョンが異なる場合は削除
         await cacheFile.delete();
         return null;
@@ -64,7 +64,7 @@ class CacheService {
       return AudioAnalysisResult.fromJson(jsonData['data']);
     } catch (e) {
       // キャッシュ読み込みエラーは無視（再解析で対応）
-      print('キャッシュ読み込みエラー: $e');
+      // エラーが発生した場合はnullを返す
       return null;
     }
   }
@@ -80,7 +80,7 @@ class CacheService {
 
       // バージョン情報を含むデータ構造
       final cacheData = {
-        'version': CACHE_VERSION,
+        'version': cacheVersion,
         'savedAt': DateTime.now().toIso8601String(),
         'data': result.toJson(),
       };
@@ -88,10 +88,10 @@ class CacheService {
       final jsonString = jsonEncode(cacheData);
       await cacheFile.writeAsString(jsonString);
 
-      print('キャッシュ保存完了: $assetPath');
+      // キャッシュ保存完了
     } catch (e) {
       // キャッシュ保存エラーは無視（機能に影響しない）
-      print('キャッシュ保存エラー: $e');
+      // エラーが発生した場合は何もしない
     }
   }
 
@@ -105,10 +105,10 @@ class CacheService {
 
       if (await cacheFile.exists()) {
         await cacheFile.delete();
-        print('キャッシュ削除完了: $assetPath');
+        // キャッシュ削除完了
       }
     } catch (e) {
-      print('キャッシュ削除エラー: $e');
+      // エラーが発生した場合は何もしない
     }
   }
 
@@ -116,14 +116,14 @@ class CacheService {
   static Future<void> clearAllCache() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/$CACHE_DIRECTORY');
+      final cacheDir = Directory('${directory.path}/$cacheDirectory');
 
       if (await cacheDir.exists()) {
         await cacheDir.delete(recursive: true);
-        print('全キャッシュ削除完了');
+        // 全キャッシュ削除完了
       }
     } catch (e) {
-      print('全キャッシュ削除エラー: $e');
+      // エラーが発生した場合は何もしない
     }
   }
 
@@ -133,7 +133,7 @@ class CacheService {
   static Future<int> getCacheSize() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/$CACHE_DIRECTORY');
+      final cacheDir = Directory('${directory.path}/$cacheDirectory');
 
       if (!await cacheDir.exists()) {
         return 0;
@@ -149,7 +149,7 @@ class CacheService {
 
       return totalSize;
     } catch (e) {
-      print('キャッシュサイズ取得エラー: $e');
+      // エラーが発生した場合は0を返す
       return 0;
     }
   }
@@ -160,7 +160,7 @@ class CacheService {
   static Future<Map<String, dynamic>> getCacheInfo() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/$CACHE_DIRECTORY');
+      final cacheDir = Directory('${directory.path}/$cacheDirectory');
 
       if (!await cacheDir.exists()) {
         return {'fileCount': 0, 'totalSize': 0, 'lastModified': null};
@@ -171,7 +171,7 @@ class CacheService {
       DateTime? lastModified;
 
       await for (final file in cacheDir.list()) {
-        if (file is File && file.path.endsWith(CACHE_FILE_EXTENSION)) {
+        if (file is File && file.path.endsWith(cacheFileExtension)) {
           fileCount++;
           final stat = await file.stat();
           totalSize += stat.size;
@@ -188,7 +188,7 @@ class CacheService {
         'lastModified': lastModified?.toIso8601String(),
       };
     } catch (e) {
-      print('キャッシュ情報取得エラー: $e');
+      // エラーが発生した場合はデフォルト値を返す
       return {'fileCount': 0, 'totalSize': 0, 'lastModified': null};
     }
   }
@@ -197,29 +197,27 @@ class CacheService {
   static Future<void> cleanupOldCache() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory('${directory.path}/$CACHE_DIRECTORY');
+      final cacheDir = Directory('${directory.path}/$cacheDirectory');
 
       if (!await cacheDir.exists()) {
         return;
       }
 
-      int deletedCount = 0;
-      final cutoffDate = DateTime.now().subtract(Duration(days: MAX_CACHE_AGE_DAYS));
+      final cutoffDate = DateTime.now().subtract(const Duration(days: maxCacheAgeDays));
 
       await for (final file in cacheDir.list()) {
-        if (file is File && file.path.endsWith(CACHE_FILE_EXTENSION)) {
+        if (file is File && file.path.endsWith(cacheFileExtension)) {
           final stat = await file.stat();
 
           if (stat.modified.isBefore(cutoffDate)) {
             await file.delete();
-            deletedCount++;
           }
         }
       }
 
-      print('古いキャッシュ削除完了: $deletedCount ファイル');
+      // 古いキャッシュ削除完了
     } catch (e) {
-      print('キャッシュクリーンアップエラー: $e');
+      // エラーが発生した場合は何もしない
     }
   }
 }

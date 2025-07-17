@@ -72,6 +72,18 @@
 - **ログ出力**: デバッグ用のログを適切に出力
 - **グレースフルデグラデーション**: エラー時も可能な限り機能を提供
 
+### コード品質管理ルール ⚠️ 【新設・厳守必須】
+- **ゼロ警告原則**: エラー、警告、情報を含む全てのlint問題を残さない
+- **flutter analyze**: コミット前に必ず実行し、すべての問題を解決
+- **品質チェック項目**:
+  - `prefer_const_constructors`: constコンストラクタの使用
+  - `avoid_print`: 本番コードでのprint文の禁止
+  - `use_build_context_synchronously`: BuildContextの適切な使用
+  - `constant_identifier_names`: 定数名はlowerCamelCaseに統一
+  - `unnecessary_overrides`: 不要なオーバーライドの削除
+  - `deprecated_member_use`: 非推奨APIの使用禁止
+- **コミット基準**: `flutter analyze`で0 issues foundの状態のみコミット可能
+
 ### Phase 3 専用ルール
 - **スコアリング**: `lib/services/scoring_service.dart` に集約
 - **フィードバック生成**: `lib/services/feedback_service.dart` に集約

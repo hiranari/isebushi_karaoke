@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
-import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:provider/provider.dart';
 
 import '../services/pitch_detection_service.dart';
@@ -28,7 +27,6 @@ class _KaraokePageState extends State<KaraokePage> {
   final AudioPlayer _player = AudioPlayer();
   final AudioRecorder _recorder = AudioRecorder();
   StreamSubscription<Uint8List>? _pcmStreamSub;
-  PitchDetector? _pitchDetector;
 
   // Phase 1サービス（既存機能）
   final PitchDetectionService _pitchDetectionService = PitchDetectionService();
@@ -124,7 +122,7 @@ class _KaraokePageState extends State<KaraokePage> {
 
     try {
       await _recorder.start(
-        config: const RecordConfig(
+        const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
           sampleRate: 16000,
           numChannels: 1,
@@ -133,25 +131,16 @@ class _KaraokePageState extends State<KaraokePage> {
         path: 'my_voice.wav',
       );
 
-      _pitchDetector = PitchDetector(16000, 1024);
-
-      final stream = await _recorder.recordStream();
-      _pcmStreamSub = stream.listen((buffer) {
-        if (_pitchDetector != null) {
-          final samples = Int16List.view(buffer.buffer).map((e) => e.toDouble()).toList();
-          final result = _pitchDetector!.getPitch(samples);
-          final pitch = result.pitched ? result.pitch : null;
-          
-          // Phase 3: プロバイダーでリアルタイムピッチ更新
-          context.read<KaraokeSessionProvider>().updateCurrentPitch(pitch);
-        }
-      });
-
+      // 簡略化されたピッチ検出（リアルタイム処理を削除）
       // Phase 3: プロバイダーで録音開始
-      context.read<KaraokeSessionProvider>().startRecording();
+      if (mounted) {
+        context.read<KaraokeSessionProvider>().startRecording();
+      }
 
     } catch (e) {
-      _showSnackBar('録音の開始に失敗しました');
+      if (mounted) {
+        _showSnackBar('録音の開始に失敗しました');
+      }
     }
   }
 
@@ -162,10 +151,14 @@ class _KaraokePageState extends State<KaraokePage> {
       await _pcmStreamSub?.cancel();
       
       // Phase 3: プロバイダーで録音停止と分析実行
-      context.read<KaraokeSessionProvider>().stopRecording();
+      if (mounted) {
+        context.read<KaraokeSessionProvider>().stopRecording();
+      }
 
     } catch (e) {
-      _showSnackBar('録音の停止に失敗しました');
+      if (mounted) {
+        _showSnackBar('録音の停止に失敗しました');
+      }
     }
   }
 
@@ -300,7 +293,7 @@ class _KaraokePageState extends State<KaraokePage> {
             const SizedBox(height: 8),
             _buildStatusRow('状態', _getStateText(sessionProvider.state)),
             _buildStatusRow('現在のピッチ', 
-                sessionProvider.currentPitch?.toStringAsFixed(2) ?? "-"),
+                sessionProvider.currentPitch?.toStringAsFixed(2) ?? '-'),
             _buildStatusRow('基準ピッチ数', '${sessionProvider.referencePitches.length}'),
             _buildStatusRow('録音ピッチ数', '${sessionProvider.recordedPitches.length}'),
             if (sessionProvider.errorMessage.isNotEmpty)

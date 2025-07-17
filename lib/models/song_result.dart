@@ -50,6 +50,24 @@ class SongResult {
       feedback: List<String>.from(json['feedback']),
     );
   }
+
+  // 後方互換性のためのアクセサー
+  double get pitchAccuracy => scoreBreakdown.pitchAccuracyScore;
+  double get stability => scoreBreakdown.stabilityScore;
+  double get timing => scoreBreakdown.timingScore;
+  double get overall => totalScore;
+  
+  String get scoreLevel {
+    if (totalScore >= 95) return 'S';
+    if (totalScore >= 85) return 'A';
+    if (totalScore >= 75) return 'B';
+    if (totalScore >= 65) return 'C';
+    if (totalScore >= 55) return 'D';
+    return 'F';
+  }
+  
+  bool get isExcellent => totalScore >= 85;
+  DateTime get recordedAt => timestamp;
 }
 
 /// スコア内訳（総合スコアの構成要素）
@@ -98,6 +116,11 @@ class ScoreBreakdown {
       timingWeight: json['timingWeight']?.toDouble() ?? 0.1,
     );
   }
+
+  // 後方互換性のためのアクセサー
+  double get pitchAccuracy => pitchAccuracyScore;
+  double get stability => stabilityScore;
+  double get timing => timingScore;
 }
 
 /// ピッチ精度分析結果
@@ -177,6 +200,9 @@ class PitchPoint {
       deviation: json['deviation'].toDouble(),
     );
   }
+
+  // 後方互換性のためのアクセサー
+  double get timeSeconds => timestamp;
 }
 
 /// タイミング分析結果

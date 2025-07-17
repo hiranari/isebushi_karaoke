@@ -26,20 +26,16 @@ class DetailedAnalysisWidget extends StatelessWidget {
           _buildHeader(context),
           const SizedBox(height: 24),
 
-          // 詳細スコア
-          _buildDetailedScores(context),
+          // 基本情報
+          _buildBasicInfo(context),
           const SizedBox(height: 24),
 
           // 音程グラフ
           _buildPitchGraph(context),
           const SizedBox(height: 24),
 
-          // 統計情報
+          // 統計情報（分析データから）
           _buildStatistics(context),
-          const SizedBox(height: 24),
-
-          // 強み・弱み
-          _buildStrengthsAndWeaknesses(context),
           const SizedBox(height: 32),
 
           // アクションボタン
@@ -72,9 +68,7 @@ class DetailedAnalysisWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailedScores(BuildContext context) {
-    final score = result.comprehensiveScore;
-    
+  Widget _buildBasicInfo(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -82,46 +76,14 @@ class DetailedAnalysisWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '詳細スコア',
+              '分析結果',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
             
-            _buildDetailedScoreItem(
-              context,
-              '音程精度',
-              score.pitchAccuracy,
-              '70%の重み',
-              Colors.blue,
-              Icons.music_note,
-            ),
-            const SizedBox(height: 12),
-            
-            _buildDetailedScoreItem(
-              context,
-              '安定性',
-              score.stability,
-              '20%の重み',
-              Colors.green,
-              Icons.timeline,
-            ),
-            const SizedBox(height: 12),
-            
-            _buildDetailedScoreItem(
-              context,
-              'タイミング',
-              score.timing,
-              '10%の重み',
-              Colors.orange,
-              Icons.schedule,
-            ),
-            
-            const Divider(height: 32),
-            
-            // 総合スコア
             Row(
               children: [
-                Icon(Icons.star, color: Colors.amber, size: 24),
+                const Icon(Icons.star, color: Colors.amber, size: 24),
                 const SizedBox(width: 8),
                 Text(
                   '総合スコア',
@@ -131,7 +93,7 @@ class DetailedAnalysisWidget extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${score.overall.toStringAsFixed(1)}点',
+                  '${result.totalScore.toStringAsFixed(1)}点',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.amber[700],
@@ -139,19 +101,55 @@ class DetailedAnalysisWidget extends StatelessWidget {
                 ),
               ],
             ),
+            
+            const SizedBox(height: 16),
+            
+            // 音程分析
+            _buildAnalysisItem(
+              context, 
+              '音程分析', 
+              result.pitchAnalysis.accuracyRatio * 100,
+              '正確率: ${(result.pitchAnalysis.accuracyRatio * 100).toStringAsFixed(1)}%',
+              Icons.music_note,
+              Colors.blue
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // タイミング分析  
+            _buildAnalysisItem(
+              context,
+              'タイミング分析',
+              result.scoreBreakdown.timingScore,
+              'スコア: ${result.scoreBreakdown.timingScore.toStringAsFixed(1)}点',
+              Icons.schedule,
+              Colors.orange
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // 安定性分析
+            _buildAnalysisItem(
+              context,
+              '安定性分析', 
+              result.stabilityAnalysis.stabilityRatio * 100,
+              '変動: ${result.stabilityAnalysis.averageVariation.toStringAsFixed(1)}セント',
+              Icons.timeline,
+              Colors.green
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailedScoreItem(
+  Widget _buildAnalysisItem(
     BuildContext context,
     String label,
     double score,
     String description,
-    Color color,
     IconData icon,
+    Color color,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,8 +260,6 @@ class DetailedAnalysisWidget extends StatelessWidget {
   }
 
   Widget _buildStatistics(BuildContext context) {
-    final stats = result.detailedAnalysis.statistics;
-    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -276,52 +272,41 @@ class DetailedAnalysisWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '歌唱カバレッジ',
-                    '${((stats['songCoverage'] ?? 0.0) * 100).toStringAsFixed(1)}%',
-                    Icons.percent,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '音程精度',
-                    '${((stats['goodPitchRatio'] ?? 0.0) * 100).toStringAsFixed(1)}%',
-                    Icons.precision_manufacturing,
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '平均誤差',
-                    '${(stats['meanAbsoluteError'] ?? 0.0).toStringAsFixed(1)}Hz',
-                    Icons.trending_down,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    context,
-                    '音程変動',
-                    '${(stats['averageVariation'] ?? 0.0).toStringAsFixed(1)}Hz',
-                    Icons.waves,
-                  ),
-                ),
-              ],
-            ),
+            // スコア内訳の統計
+            _buildScoreBreakdown(context),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildScoreBreakdown(BuildContext context) {
+    return Column(
+      children: [
+        _buildStatItem(
+          context,
+          '音程精度',
+          '${result.scoreBreakdown.pitchAccuracyScore.toStringAsFixed(1)}点',
+          Icons.music_note,
+          Colors.blue,
+        ),
+        const SizedBox(height: 12),
+        _buildStatItem(
+          context,
+          'タイミング',
+          '${result.scoreBreakdown.timingScore.toStringAsFixed(1)}点',
+          Icons.schedule,
+          Colors.orange,
+        ),
+        const SizedBox(height: 12),
+        _buildStatItem(
+          context,
+          '安定性',
+          '${result.scoreBreakdown.stabilityScore.toStringAsFixed(1)}点',
+          Icons.timeline,
+          Colors.green,
+        ),
+      ],
     );
   }
 
@@ -330,96 +315,23 @@ class DetailedAnalysisWidget extends StatelessWidget {
     String label,
     String value,
     IconData icon,
+    Color color,
   ) {
-    return Column(
+    return Row(
       children: [
-        Icon(icon, color: Colors.grey[600], size: 24),
-        const SizedBox(height: 4),
+        Icon(icon, color: color, size: 24),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStrengthsAndWeaknesses(BuildContext context) {
-    final analysis = result.detailedAnalysis;
-    
-    return Column(
-      children: [
-        // 強み
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.thumb_up, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Text(
-                      '良かった点',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...analysis.strengths.map((strength) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('• ', style: TextStyle(color: Colors.green)),
-                      Expanded(child: Text(strength)),
-                    ],
-                  ),
-                )),
-              ],
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // 弱み
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.lightbulb, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Text(
-                      '改善できる点',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...analysis.weaknesses.map((weakness) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('• ', style: TextStyle(color: Colors.orange)),
-                      Expanded(child: Text(weakness)),
-                    ],
-                  ),
-                )),
-              ],
-            ),
+            color: color,
           ),
         ),
       ],

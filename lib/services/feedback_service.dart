@@ -28,6 +28,50 @@ class FeedbackService {
     return feedback;
   }
 
+  /// 後方互換性のためのメソッド - スコア内訳とデータからフィードバック生成
+  static Map<String, List<String>> generateComprehensiveFeedback({
+    required ScoreBreakdown scoreBreakdown,
+    required Map<String, dynamic> analysisData,
+  }) {
+    final Map<String, List<String>> result = {
+      'strengths': <String>[],
+      'actionableAdvice': <String>[],
+      'improvementPoints': <String>[],
+      'practiceAreas': <String>[],
+    };
+    
+    // スコアに基づくフィードバック生成
+    if (scoreBreakdown.pitchAccuracyScore >= 80) {
+      result['strengths']!.add('音程精度が優秀です');
+    } else {
+      result['improvementPoints']!.add('音程精度の向上');
+      result['practiceAreas']!.add('音程練習');
+    }
+    
+    if (scoreBreakdown.stabilityScore >= 80) {
+      result['strengths']!.add('音程が安定しています');
+    } else {
+      result['improvementPoints']!.add('音程安定性の向上');
+      result['practiceAreas']!.add('ロングトーン練習');
+    }
+    
+    if (scoreBreakdown.timingScore >= 80) {
+      result['strengths']!.add('タイミングが良好です');
+    } else {
+      result['improvementPoints']!.add('タイミングの調整');
+      result['practiceAreas']!.add('リズム練習');
+    }
+    
+    // 実行可能なアドバイス
+    result['actionableAdvice']!.addAll([
+      '定期的な練習を続けましょう',
+      '楽器と合わせて歌ってみてください',
+      '録音を聞き返して客観的に評価しましょう',
+    ]);
+    
+    return result;
+  }
+
   /// ピッチ精度に関するフィードバック生成
   static List<String> _generatePitchFeedback(PitchAnalysis analysis) {
     final feedback = <String>[];

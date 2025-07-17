@@ -1,7 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../models/song_result.dart';
 import '../services/scoring_service.dart';
-import '../services/analysis_service.dart';
 import '../services/feedback_service.dart';
 
 /// Phase 3: 歌唱結果の状態管理を担当するProvider
@@ -34,54 +34,38 @@ class SongResultProvider extends ChangeNotifier {
   /// [songTitle] 楽曲タイトル
   /// [recordedPitches] 録音されたピッチデータ
   /// [referencePitches] 基準ピッチデータ
-  /// [songDuration] 楽曲の総時間
   Future<void> calculateSongResult({
     required String songTitle,
     required List<double> recordedPitches,
     required List<double> referencePitches,
-    required Duration songDuration,
   }) async {
     _setProcessing(true, '結果を計算中...');
 
     try {
       // Phase 3: 段階的な処理
       
-      // 1. 詳細分析の実行
-      _setProcessing(true, '詳細分析を実行中...');
-      final analysisData = AnalysisService.performDetailedAnalysis(
-        recordedPitches: recordedPitches,
-        referencePitches: referencePitches,
-        songDuration: songDuration,
-      );
-
-      // 2. スコア計算
+      // 1. スコア計算（包括的分析）
       _setProcessing(true, 'スコアを計算中...');
-      final timingAccuracies = analysisData.timingPoints
-          .map((tp) => tp.timingAccuracy)
-          .toList();
-
-      final scoreBreakdown = ScoringService.calculateScore(
+      final songResult = ScoringService.calculateComprehensiveScore(
         recordedPitches: recordedPitches,
         referencePitches: referencePitches,
-        timingAccuracies: timingAccuracies,
-      );
-
-      // 3. フィードバック生成
-      _setProcessing(true, 'フィードバックを生成中...');
-      final feedbackData = FeedbackService.generateFeedback(
-        scoreBreakdown: scoreBreakdown,
-        analysisData: analysisData,
-      );
-
-      // 4. 最終結果の作成
-      _currentResult = SongResult(
         songTitle: songTitle,
-        recordedAt: DateTime.now(),
-        songDuration: songDuration,
-        totalScore: scoreBreakdown.totalWeightedScore,
-        scoreBreakdown: scoreBreakdown,
-        analysisData: analysisData,
-        feedbackData: feedbackData,
+      );
+
+      // 2. フィードバック生成
+      _setProcessing(true, 'フィードバックを生成中...');
+      final feedbackList = FeedbackService.generateFeedback(songResult);
+
+      // 3. フィードバックを結果に追加した新しいSongResultを作成
+      _currentResult = SongResult(
+        songTitle: songResult.songTitle,
+        timestamp: songResult.timestamp,
+        totalScore: songResult.totalScore,
+        scoreBreakdown: songResult.scoreBreakdown,
+        pitchAnalysis: songResult.pitchAnalysis,
+        timingAnalysis: songResult.timingAnalysis,
+        stabilityAnalysis: songResult.stabilityAnalysis,
+        feedback: feedbackList,
       );
 
       // 表示状態をtotalScoreに設定
@@ -140,8 +124,8 @@ class SongResultProvider extends ChangeNotifier {
   bool get isExcellentResult => _currentResult?.isExcellent ?? false;
 
   /// 改善が最も必要な項目の取得（便利メソッド）
-  String? get recommendedFocus {
-    if (_currentResult == null) return null;
+  List<String> get recommendedFocus {
+    if (_currentResult == null) return [];
     return ScoringService.getRecommendedFocus(_currentResult!.scoreBreakdown);
   }
 }

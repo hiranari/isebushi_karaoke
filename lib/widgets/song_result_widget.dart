@@ -37,7 +37,7 @@ class SongResultWidget extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -157,7 +157,7 @@ class SongResultWidget extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${result.totalScore.toStringAsFixed(1)}',
+                  result.totalScore.toStringAsFixed(1),
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -205,7 +205,7 @@ class SongResultWidget extends StatelessWidget {
         const SizedBox(height: 16),
         _buildScoreBreakdown(result.scoreBreakdown),
         const SizedBox(height: 16),
-        _buildStatistics(result.analysisData.statistics),
+        _buildBasicStatistics(result),
       ],
     );
   }
@@ -247,31 +247,38 @@ class SongResultWidget extends StatelessWidget {
     );
   }
 
-  /// 統計情報表示
-  Widget _buildStatistics(AnalysisStatistics stats) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '統計情報',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('音程一致率: ${(stats.accuracyRate * 100).toStringAsFixed(1)}%'),
-              Text('分析音数: ${stats.totalNotes}'),
-            ],
-          ),
-        ],
-      ),
+  /// 基本統計情報表示
+  Widget _buildBasicStatistics(SongResult result) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '分析結果',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Text('音程正確率: ${(result.pitchAnalysis.accuracyRatio * 100).toStringAsFixed(1)}%'),
+        Text('音程変動: ${result.stabilityAnalysis.averageVariation.toStringAsFixed(1)}セント'),
+        Text('タイミング正確率: ${((result.timingAnalysis.onTimeNotes / (result.timingAnalysis.onTimeNotes + result.timingAnalysis.earlyNotes + result.timingAnalysis.lateNotes)) * 100).toStringAsFixed(1)}%'),
+      ],
+    );
+  }
+
+  /// フィードバックリスト表示
+  Widget _buildFeedbackList(List<String> feedback) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'フィードバック',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...feedback.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text('• $item'),
+        )),
+      ],
     );
   }
 
@@ -291,110 +298,8 @@ class SongResultWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _buildStrengths(result.feedbackData.strengths),
-        const SizedBox(height: 16),
-        _buildImprovementPoints(result.feedbackData.improvementPoints),
-        const SizedBox(height: 16),
-        _buildActionableAdvice(result.feedbackData.actionableAdvice),
+        _buildFeedbackList(result.feedback),
       ],
-    );
-  }
-
-  /// 強み表示
-  Widget _buildStrengths(List<String> strengths) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.green[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.thumb_up, color: Colors.green[600], size: 16),
-              const SizedBox(width: 8),
-              const Text(
-                '強み',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...strengths.map((strength) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text('• $strength', style: const TextStyle(fontSize: 13)),
-              )),
-        ],
-      ),
-    );
-  }
-
-  /// 改善ポイント表示
-  Widget _buildImprovementPoints(List<ImprovementPoint> points) {
-    if (points.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.orange[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.trending_up, color: Colors.orange[600], size: 16),
-              const SizedBox(width: 8),
-              const Text(
-                '改善ポイント',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...points.take(3).map((point) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text('• ${point.description}', style: const TextStyle(fontSize: 13)),
-              )),
-        ],
-      ),
-    );
-  }
-
-  /// 具体的アドバイス表示
-  Widget _buildActionableAdvice(List<String> advice) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.lightbulb, color: Colors.blue[600], size: 16),
-              const SizedBox(width: 8),
-              const Text(
-                '練習のヒント',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...advice.take(3).map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text('• $item', style: const TextStyle(fontSize: 13)),
-              )),
-        ],
-      ),
     );
   }
 

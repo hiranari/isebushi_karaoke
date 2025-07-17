@@ -139,21 +139,21 @@ void main() {
         overallScore: 85.0,
         centDifferences: [0.0, 10.0, -5.0],
         alignedPitches: [],
-        stabilityAnalysis: PitchStabilityAnalysis(
+        stabilityAnalysis: const PitchStabilityAnalysis(
           stabilityScore: 90.0,
           pitchVariance: 5.0,
           averageDeviation: 2.0,
           segments: [],
           unstableRegionCount: 1,
         ),
-        vibratoAnalysis: VibratoAnalysis(
+        vibratoAnalysis: const VibratoAnalysis(
           vibratoDetected: true,
           vibratoRate: 5.5,
           vibratoDepth: 15.0,
           vibratoSegments: [],
           vibratoRegularityScore: 80.0,
         ),
-        timingAnalysis: TimingAccuracyAnalysis(
+        timingAnalysis: const TimingAccuracyAnalysis(
           accuracyScore: 95.0,
           averageTimeOffset: 10.0,
           maxTimeOffset: 25.0,

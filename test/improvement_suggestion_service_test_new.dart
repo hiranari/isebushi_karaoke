@@ -117,9 +117,9 @@ void main() {
         );
         
         // 良いパフォーマンスには少ない提案、または高レベルの改善提案
-        expect(suggestions.length, lessThanOrEqualTo(3));
+        expect(suggestions.length, lessThanOrEqualTo(2));
         if (suggestions.isNotEmpty) {
-          expect(suggestions.first.priority, greaterThanOrEqualTo(1)); // 優先度は1以上
+          expect(suggestions.first.priority, greaterThanOrEqualTo(2)); // 低い優先度
         }
       });
 
@@ -142,7 +142,7 @@ void main() {
         );
         
         expect(suggestions.isNotEmpty, isTrue);
-        expect(suggestions.any((s) => s.description.contains('音程') || s.description.contains('発声')), isTrue);
+        expect(suggestions.any((s) => s.description.contains('ピッチ')), isTrue);
       });
     });
 
@@ -162,7 +162,7 @@ void main() {
         );
         
         // 完璧なスコアには改善提案がないか、非常に高レベルな提案のみ
-        expect(suggestions.length, lessThanOrEqualTo(2));
+        expect(suggestions.length, lessThanOrEqualTo(1));
       });
 
       test('should handle missing statistics gracefully', () {
@@ -244,7 +244,7 @@ void main() {
         
         final pitchSuggestions = suggestions.where((s) => s.category == 'pitch').toList();
         expect(pitchSuggestions, isNotEmpty);
-        expect(pitchSuggestions.first.description, contains('音程'));
+        expect(pitchSuggestions.first.description, contains('ピッチ'));
       });
 
       test('should consider statistical context in suggestions', () {

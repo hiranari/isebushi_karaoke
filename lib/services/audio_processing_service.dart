@@ -4,9 +4,9 @@ import 'package:flutter/services.dart' show rootBundle;
 
 /// MP3ファイルの音声処理を担当するサービスクラス
 class AudioProcessingService {
-  static const int DEFAULT_SAMPLE_RATE = 16000;
-  static const int DEFAULT_CHANNELS = 1;
-  static const int WAV_HEADER_SIZE = 44;
+  static const int defaultSampleRate = 16000;
+  static const int defaultChannels = 1;
+  static const int wavHeaderSize = 44;
 
   /// MP3ファイルをPCMデータに変換
   ///
@@ -38,17 +38,17 @@ class AudioProcessingService {
       final wavData = bytes.buffer.asUint8List();
 
       // WAVヘッダーの検証
-      if (wavData.length < WAV_HEADER_SIZE) {
-        throw AudioProcessingException('WAVファイルが不正です（サイズが小さすぎます）');
+      if (wavData.length < wavHeaderSize) {
+        throw const AudioProcessingException('WAVファイルが不正です（サイズが小さすぎます）');
       }
 
       // WAVヘッダーの簡易チェック
       if (!_isValidWavHeader(wavData)) {
-        throw AudioProcessingException('有効なWAVファイルではありません');
+        throw const AudioProcessingException('有効なWAVファイルではありません');
       }
 
       // WAVヘッダー（44バイト）をスキップしてPCM部分を取得
-      final pcmData = wavData.sublist(WAV_HEADER_SIZE);
+      final pcmData = wavData.sublist(wavHeaderSize);
       return Int16List.view(pcmData.buffer, pcmData.offsetInBytes, pcmData.lengthInBytes ~/ 2);
     } catch (e) {
       throw AudioProcessingException('WAV処理に失敗しました: $e');
@@ -118,8 +118,8 @@ class AudioProcessingService {
 
       for (final freq in frequencies) {
         // 各周波数の振幅を時間で変調
-        final amplitude = 0.3 * math.sin(2 * math.pi * 0.1 * i / DEFAULT_SAMPLE_RATE);
-        sample += amplitude * math.sin(2 * math.pi * freq * i / DEFAULT_SAMPLE_RATE);
+        final amplitude = 0.3 * math.sin(2 * math.pi * 0.1 * i / defaultSampleRate);
+        sample += amplitude * math.sin(2 * math.pi * freq * i / defaultSampleRate);
       }
 
       // 32767は16bit符号付き整数の最大値

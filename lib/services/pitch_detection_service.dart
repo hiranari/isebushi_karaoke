@@ -6,10 +6,10 @@ import 'audio_processing_service.dart';
 
 /// ピッチ検出を担当するサービスクラス
 class PitchDetectionService {
-  static const int DEFAULT_SAMPLE_RATE = 44100;
-  static const int DEFAULT_BUFFER_SIZE = 2048;
-  static const double MIN_PITCH_HZ = 80.0; // 最低ピッチ（E2付近）
-  static const double MAX_PITCH_HZ = 2000.0; // 最高ピッチ（B6付近）
+  static const int defaultSampleRate = 44100;
+  static const int defaultBufferSize = 4096;
+  static const double minPitchHz = 80.0;
+  static const double maxPitchHz = 800.0;
 
   bool _isInitialized = false;
 
@@ -41,11 +41,11 @@ class PitchDetectionService {
       ]).toList());
 
       // ピッチ検出実行
-      final pitches = await _analyzePitchFromPcm(uint8Pcm, DEFAULT_SAMPLE_RATE);
+      final pitches = await _analyzePitchFromPcm(uint8Pcm, defaultSampleRate);
 
       return AudioAnalysisResult(
         pitches: pitches,
-        sampleRate: DEFAULT_SAMPLE_RATE,
+        sampleRate: defaultSampleRate,
         createdAt: DateTime.now(),
         sourceFile: assetPath,
       );
@@ -75,11 +75,11 @@ class PitchDetectionService {
       ]).toList());
 
       // ピッチ検出実行
-      final pitches = await _analyzePitchFromPcm(uint8Pcm, DEFAULT_SAMPLE_RATE);
+      final pitches = await _analyzePitchFromPcm(uint8Pcm, defaultSampleRate);
 
       return AudioAnalysisResult(
         pitches: pitches,
-        sampleRate: DEFAULT_SAMPLE_RATE,
+        sampleRate: defaultSampleRate,
         createdAt: DateTime.now(),
         sourceFile: assetPath,
       );
@@ -125,7 +125,7 @@ class PitchDetectionService {
 
       return pitches;
     } catch (e) {
-      print('ピッチ検出エラー: $e');
+      // エラーが発生した場合は空のリストを返す
       return [];
     }
   }

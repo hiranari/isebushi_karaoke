@@ -8,14 +8,14 @@ import '../models/song_result.dart';
 /// 詳細な分析結果を提供します。
 class ScoringService {
   // スコアリング定数
-  static const double PITCH_ACCURACY_WEIGHT = 0.7;
-  static const double STABILITY_WEIGHT = 0.2;
-  static const double TIMING_WEIGHT = 0.1;
+  static const double pitchAccuracyWeight = 0.7;
+  static const double stabilityWeight = 0.2;
+  static const double timingWeight = 0.1;
   
   // 精度判定閾値
-  static const double PITCH_ACCURACY_THRESHOLD_CENTS = 50.0; // セント単位
-  static const double TIMING_ACCURACY_THRESHOLD_SEC = 0.2;   // 秒単位
-  static const double STABILITY_THRESHOLD_CENTS = 30.0;      // セント単位
+  static const double pitchAccuracyThresholdCents = 50.0; // セント単位
+  static const double timingAccuracyThresholdSec = 0.2;   // 秒単位
+  static const double stabilityThresholdCents = 30.0;      // セント単位
 
   /// 歌唱データから総合的なスコアを算出
   /// 
@@ -105,7 +105,7 @@ class ScoringService {
       deviations.add(deviationCents);
       
       // 正確性の判定
-      if (deviationCents.abs() <= PITCH_ACCURACY_THRESHOLD_CENTS) {
+      if (deviationCents.abs() <= pitchAccuracyThresholdCents) {
         correctNotes++;
       }
       
@@ -157,7 +157,7 @@ class ScoringService {
       
       variations.add(variation);
       
-      if (variation <= STABILITY_THRESHOLD_CENTS) {
+      if (variation <= stabilityThresholdCents) {
         stableNotes++;
       } else {
         unstableNotes++;
@@ -216,7 +216,7 @@ class ScoringService {
     
     // 平均ずれによる減点
     final deviationPenalty = math.min(
-      analysis.averageDeviation / PITCH_ACCURACY_THRESHOLD_CENTS * 20,
+      analysis.averageDeviation / pitchAccuracyThresholdCents * 20,
       20.0,
     );
     
@@ -233,7 +233,7 @@ class ScoringService {
     
     // 平均変動による減点
     final variationPenalty = math.min(
-      analysis.averageVariation / STABILITY_THRESHOLD_CENTS * 15,
+      analysis.averageVariation / stabilityThresholdCents * 15,
       15.0,
     );
     
@@ -272,4 +272,69 @@ class ScoringService {
     if (score >= 55) return 'D';
     return 'F';
   }
+
+  /// スコアランクを取得（後方互換性のため）
+  static String getScoreRank(double score) {
+    return getScoreGrade(score);
+  }
+
+  /// スコアレベルを取得（後方互換性のため）
+  static String getScoreLevel(double score) {
+    if (score >= 95) return 'S';
+    if (score >= 85) return 'A';
+    if (score >= 75) return 'B';
+    if (score >= 65) return 'C';
+    if (score >= 55) return 'D';
+    return 'F';
+  }
+
+  /// スコアコメントを取得
+  static String getScoreComment(double score) {
+    if (score >= 95) return '素晴らしい歌唱です！';
+    if (score >= 85) return 'とても上手です！';
+    if (score >= 75) return '良い歌唱です！';
+    if (score >= 65) return 'もう少し練習が必要です';
+    if (score >= 55) return '練習を続けましょう';
+    return '基礎から練習しましょう';
+  }
+
+  /// セント単位での音程のずれを計算（公開メソッド）
+  static double calculateCentDifference(double referencePitch, double recordedPitch) {
+    return _calculateCentsDeviation(referencePitch, recordedPitch);
+  }
+
+  /// 推奨フォーカスエリアを取得
+  static List<String> getRecommendedFocus(ScoreBreakdown scoreBreakdown) {
+    final focus = <String>[];
+    
+    if (scoreBreakdown.pitchAccuracyScore < 70) {
+      focus.add('音程精度');
+    }
+    if (scoreBreakdown.stabilityScore < 70) {
+      focus.add('音程安定性');
+    }
+    if (scoreBreakdown.timingScore < 70) {
+      focus.add('タイミング');
+    }
+    
+    return focus.isEmpty ? ['全体的なバランス'] : focus;
+  }
+
+  /// スコア計算メソッド（後方互換性のため）
+  static SongResult calculateScore({
+    required List<double> referencePitches,
+    required List<double> recordedPitches,
+    required String songTitle,
+  }) {
+    return calculateComprehensiveScore(
+      referencePitches: referencePitches,
+      recordedPitches: recordedPitches,
+      songTitle: songTitle,
+    );
+  }
+
+  // スコアリング定数（後方互換性のため）
+  static const double perfectPitchThreshold = 20.0;
+  static const double goodPitchThreshold = 50.0;
+  static const double unstableVariationThreshold = 30.0;
 }

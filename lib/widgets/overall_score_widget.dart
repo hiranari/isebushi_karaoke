@@ -16,9 +16,9 @@ class OverallScoreWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final score = result.comprehensiveScore;
-    final rank = ScoringService.getScoreRank(score.overall);
-    final comment = ScoringService.getScoreComment(score.overall);
+    final score = result.totalScore;
+    final rank = ScoringService.getScoreRank(score);
+    final comment = ScoringService.getScoreComment(score);
 
     return Card(
       margin: const EdgeInsets.all(16),
@@ -42,7 +42,8 @@ class OverallScoreWidget extends StatelessWidget {
             const SizedBox(height: 32),
 
             // 総合スコア
-            _buildScoreDisplay(context, score.overall, rank),
+                        // メインスコア表示
+            _buildScoreDisplay(context, score, rank),
             
             const SizedBox(height: 16),
 
@@ -57,8 +58,8 @@ class OverallScoreWidget extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // スコア内訳（簡易版）
-            _buildScoreBreakdown(context, score),
+            // 基本情報表示
+            _buildBasicInfo(context),
 
             const SizedBox(height: 24),
 
@@ -131,76 +132,53 @@ class OverallScoreWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildScoreBreakdown(BuildContext context, ComprehensiveScore score) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'スコア内訳',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        _buildScoreItem(
-          context,
-          '音程精度',
-          score.pitchAccuracy,
-          '70%',
-          Colors.blue,
-        ),
-        const SizedBox(height: 8),
-        _buildScoreItem(
-          context,
-          '安定性',
-          score.stability,
-          '20%',
-          Colors.green,
-        ),
-        const SizedBox(height: 8),
-        _buildScoreItem(
-          context,
-          'タイミング',
-          score.timing,
-          '10%',
-          Colors.orange,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScoreItem(
-    BuildContext context,
-    String label,
-    double score,
-    String weight,
-    Color color,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: Text(
-            '$label ($weight)',
-            style: Theme.of(context).textTheme.bodyMedium,
+  /// 基本情報表示
+  Widget _buildBasicInfo(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '楽曲',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
+              ),
+              Text(
+                result.songTitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-        ),
-        Expanded(
-          flex: 2,
-          child: LinearProgressIndicator(
-            value: score / 100,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'スコア',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
+              ),
+              Text(
+                '${result.totalScore.toStringAsFixed(1)}点',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 45,
-          child: Text(
-            '${score.toStringAsFixed(1)}点',
-            style: Theme.of(context).textTheme.bodySmall,
-            textAlign: TextAlign.right,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

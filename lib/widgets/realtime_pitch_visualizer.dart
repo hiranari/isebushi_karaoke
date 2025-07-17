@@ -201,7 +201,7 @@ class PitchVisualizerPainter extends CustomPainter {
 
     // 脈動効果用の外側の円
     final outerPaint = Paint()
-      ..color = Colors.green[600]!.withOpacity(0.3)
+      ..color = Colors.green[600]!.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
     
     canvas.drawCircle(Offset(x, y), 10, outerPaint);

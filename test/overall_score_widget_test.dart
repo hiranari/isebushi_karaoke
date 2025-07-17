@@ -10,21 +10,37 @@ void main() {
     setUp(() {
       mockResult = SongResult(
         songTitle: 'テスト楽曲',
-        recordedAt: DateTime.now(),
-        recordedPitches: [440.0, 493.88, 523.25],
-        referencePitches: [440.0, 493.88, 523.25],
-        comprehensiveScore: ComprehensiveScore.calculate(
-          pitchAccuracy: 85.0,
-          stability: 75.0,
-          timing: 80.0,
+        timestamp: DateTime.now(),
+        totalScore: 82.0,
+        scoreBreakdown: const ScoreBreakdown(
+          pitchAccuracyScore: 85.0,
+          stabilityScore: 75.0,
+          timingScore: 80.0,
         ),
-        detailedAnalysis: DetailedAnalysis(
-          pitchGraph: [],
-          statistics: {},
-          strengths: ['良い点1', '良い点2'],
-          weaknesses: ['改善点1'],
+        pitchAnalysis: const PitchAnalysis(
+          averageDeviation: 15.0,
+          maxDeviation: 30.0,
+          correctNotes: 80,
+          totalNotes: 100,
+          pitchPoints: [],
+          deviationHistory: [10.0, 15.0, 20.0],
         ),
-        improvementSuggestions: [],
+        timingAnalysis: const TimingAnalysis(
+          averageLatency: 0.05,
+          maxLatency: 0.1,
+          earlyNotes: 5,
+          lateNotes: 10,
+          onTimeNotes: 85,
+          latencyHistory: [0.03, 0.05, 0.07],
+        ),
+        stabilityAnalysis: const StabilityAnalysis(
+          averageVariation: 12.0,
+          maxVariation: 25.0,
+          stableNotes: 80,
+          unstableNotes: 10,
+          variationHistory: [10.0, 12.0, 15.0],
+        ),
+        feedback: ['良い点1', '良い点2', '改善点1'],
       );
     });
 
@@ -45,8 +61,7 @@ void main() {
         ),
       ));
 
-      // 総合スコアが表示されている
-      final expectedScore = mockResult.comprehensiveScore.overall.toStringAsFixed(1);
+      final expectedScore = mockResult.totalScore.toStringAsFixed(1);
       expect(find.textContaining(expectedScore), findsOneWidget);
     });
 
@@ -115,21 +130,37 @@ void main() {
     testWidgets('should handle perfect score', (WidgetTester tester) async {
       final perfectResult = SongResult(
         songTitle: '完璧な歌唱',
-        recordedAt: DateTime.now(),
-        recordedPitches: [440.0],
-        referencePitches: [440.0],
-        comprehensiveScore: ComprehensiveScore.calculate(
-          pitchAccuracy: 100.0,
-          stability: 100.0,
-          timing: 100.0,
+        timestamp: DateTime.now(),
+        totalScore: 100.0,
+        scoreBreakdown: ScoreBreakdown(
+          pitchAccuracyScore: 100.0,
+          stabilityScore: 100.0,
+          timingScore: 100.0,
         ),
-        detailedAnalysis: DetailedAnalysis(
-          pitchGraph: [],
-          statistics: {},
-          strengths: [],
-          weaknesses: [],
+        pitchAnalysis: PitchAnalysis(
+          averageDeviation: 0.0,
+          maxDeviation: 0.0,
+          correctNotes: 100,
+          totalNotes: 100,
+          pitchPoints: [],
+          deviationHistory: [],
         ),
-        improvementSuggestions: [],
+        timingAnalysis: TimingAnalysis(
+          averageLatency: 0.0,
+          maxLatency: 0.0,
+          earlyNotes: 0,
+          lateNotes: 0,
+          onTimeNotes: 100,
+          latencyHistory: [],
+        ),
+        stabilityAnalysis: StabilityAnalysis(
+          averageVariation: 0.0,
+          maxVariation: 0.0,
+          stableNotes: 100,
+          unstableNotes: 0,
+          variationHistory: [],
+        ),
+        feedback: ['完璧な歌唱です！'],
       );
 
       await tester.pumpWidget(MaterialApp(
@@ -148,21 +179,37 @@ void main() {
     testWidgets('should handle poor score', (WidgetTester tester) async {
       final poorResult = SongResult(
         songTitle: '練習が必要',
-        recordedAt: DateTime.now(),
-        recordedPitches: [440.0],
-        referencePitches: [440.0],
-        comprehensiveScore: ComprehensiveScore.calculate(
-          pitchAccuracy: 30.0,
-          stability: 25.0,
-          timing: 35.0,
+        timestamp: DateTime.now(),
+        totalScore: 30.0,
+        scoreBreakdown: ScoreBreakdown(
+          pitchAccuracyScore: 30.0,
+          stabilityScore: 25.0,
+          timingScore: 35.0,
         ),
-        detailedAnalysis: DetailedAnalysis(
-          pitchGraph: [],
-          statistics: {},
-          strengths: [],
-          weaknesses: [],
+        pitchAnalysis: PitchAnalysis(
+          averageDeviation: 50.0,
+          maxDeviation: 80.0,
+          correctNotes: 30,
+          totalNotes: 100,
+          pitchPoints: [],
+          deviationHistory: [],
         ),
-        improvementSuggestions: [],
+        timingAnalysis: TimingAnalysis(
+          averageLatency: 0.2,
+          maxLatency: 0.5,
+          earlyNotes: 30,
+          lateNotes: 40,
+          onTimeNotes: 30,
+          latencyHistory: [],
+        ),
+        stabilityAnalysis: StabilityAnalysis(
+          averageVariation: 40.0,
+          maxVariation: 70.0,
+          stableNotes: 25,
+          unstableNotes: 75,
+          variationHistory: [],
+        ),
+        feedback: ['練習を重ねましょう'],
       );
 
       await tester.pumpWidget(MaterialApp(
@@ -182,21 +229,37 @@ void main() {
       // Aランクの結果
       final aRankResult = SongResult(
         songTitle: 'Aランク',
-        recordedAt: DateTime.now(),
-        recordedPitches: [440.0],
-        referencePitches: [440.0],
-        comprehensiveScore: ComprehensiveScore.calculate(
-          pitchAccuracy: 85.0,
-          stability: 80.0,
-          timing: 85.0,
+        timestamp: DateTime.now(),
+        totalScore: 85.0,
+        scoreBreakdown: ScoreBreakdown(
+          pitchAccuracyScore: 85.0,
+          stabilityScore: 80.0,
+          timingScore: 85.0,
         ),
-        detailedAnalysis: DetailedAnalysis(
-          pitchGraph: [],
-          statistics: {},
-          strengths: [],
-          weaknesses: [],
+        pitchAnalysis: PitchAnalysis(
+          averageDeviation: 10.0,
+          maxDeviation: 20.0,
+          correctNotes: 85,
+          totalNotes: 100,
+          pitchPoints: [],
+          deviationHistory: [],
         ),
-        improvementSuggestions: [],
+        timingAnalysis: TimingAnalysis(
+          averageLatency: 0.03,
+          maxLatency: 0.08,
+          earlyNotes: 5,
+          lateNotes: 10,
+          onTimeNotes: 85,
+          latencyHistory: [],
+        ),
+        stabilityAnalysis: StabilityAnalysis(
+          averageVariation: 8.0,
+          maxVariation: 15.0,
+          stableNotes: 80,
+          unstableNotes: 20,
+          variationHistory: [],
+        ),
+        feedback: ['とても良い歌唱です'],
       );
 
       await tester.pumpWidget(MaterialApp(

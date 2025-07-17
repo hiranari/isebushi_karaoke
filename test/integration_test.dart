@@ -78,7 +78,7 @@ void main() {
       // Mock having a result
       final referencePitches = [440.0];
       final recordedPitches = [440.0];
-      final result = ScoringService.calculateComprehensiveScore(
+      ScoringService.calculateComprehensiveScore(
         referencePitches: referencePitches,
         recordedPitches: recordedPitches,
         songTitle: 'Test Song',

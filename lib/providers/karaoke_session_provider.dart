@@ -12,8 +12,8 @@ class KaraokeSessionProvider extends ChangeNotifier {
   // セッション状態
   KaraokeSessionState _state = KaraokeSessionState.ready;
   String? _selectedSongTitle;
-  List<double> _referencePitches = [];
-  List<double> _recordedPitches = [];
+  final List<double> _referencePitches = [];
+  final List<double> _recordedPitches = [];
   SongResult? _songResult;
   String _errorMessage = '';
 
@@ -39,7 +39,8 @@ class KaraokeSessionProvider extends ChangeNotifier {
   /// [referencePitches] 基準ピッチデータ
   void initializeSession(String songTitle, List<double> referencePitches) {
     _selectedSongTitle = songTitle;
-    _referencePitches = List.from(referencePitches);
+    _referencePitches.clear();
+    _referencePitches.addAll(referencePitches);
     _recordedPitches.clear();
     _songResult = null;
     _errorMessage = '';

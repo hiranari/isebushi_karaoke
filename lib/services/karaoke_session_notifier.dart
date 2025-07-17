@@ -1,8 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/song_result.dart';
 import '../services/scoring_service.dart';
-import '../services/analysis_service.dart';
-import '../services/improvement_suggestion_service.dart';
+import '../services/feedback_service.dart';
 
 /// カラオケセッションの状態管理
 /// Phase 3: プログレッシブ UI ディスクロージャーのための状態管理
@@ -72,33 +71,25 @@ class KaraokeSessionNotifier extends ChangeNotifier {
 
     try {
       // スコア計算
-      final comprehensiveScore = ScoringService.calculateComprehensiveScore(
+      final songResult = ScoringService.calculateComprehensiveScore(
         recordedPitches: _recordedPitches,
         referencePitches: _referencePitches,
-      );
-
-      // 詳細分析
-      final detailedAnalysis = AnalysisService.performDetailedAnalysis(
-        recordedPitches: _recordedPitches,
-        referencePitches: _referencePitches,
-        score: comprehensiveScore,
-      );
-
-      // 改善提案生成
-      final improvementSuggestions = ImprovementSuggestionService.generateSuggestions(
-        score: comprehensiveScore,
-        statistics: detailedAnalysis.statistics,
-      );
-
-      // 結果を統合
-      _currentResult = SongResult(
         songTitle: _songTitle!,
-        recordedAt: DateTime.now(),
-        recordedPitches: _recordedPitches,
-        referencePitches: _referencePitches,
-        comprehensiveScore: comprehensiveScore,
-        detailedAnalysis: detailedAnalysis,
-        improvementSuggestions: improvementSuggestions,
+      );
+
+      // フィードバック生成
+      final feedback = FeedbackService.generateFeedback(songResult);
+
+      // 結果を統合 - 新しいSongResultを作成してフィードバックを追加
+      _currentResult = SongResult(
+        songTitle: songResult.songTitle,
+        timestamp: songResult.timestamp,
+        totalScore: songResult.totalScore,
+        scoreBreakdown: songResult.scoreBreakdown,
+        pitchAnalysis: songResult.pitchAnalysis,
+        timingAnalysis: songResult.timingAnalysis,
+        stabilityAnalysis: songResult.stabilityAnalysis,
+        feedback: feedback,
       );
 
       _displayState = KaraokeDisplayState.overallScore;
@@ -173,11 +164,6 @@ class KaraokeSessionNotifier extends ChangeNotifier {
   void _clearError() {
     _errorMessage = null;
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
 

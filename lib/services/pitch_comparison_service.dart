@@ -4,13 +4,13 @@ import '../models/pitch_comparison_result.dart';
 /// 高精度ピッチ比較システム（Phase 2）
 /// 基準ピッチと歌唱ピッチの詳細比較を行うサービスクラス
 class PitchComparisonService {
-  static const double SEMITONE_CENTS = 100.0;
-  static const double OCTAVE_CENTS = 1200.0;
-  static const double VIBRATO_MIN_RATE = 4.0; // Hz
-  static const double VIBRATO_MAX_RATE = 8.0; // Hz
-  static const double VIBRATO_MIN_DEPTH = 10.0; // cents
-  static const double TIMING_THRESHOLD_MS = 100.0; // ms
-  static const double STABILITY_THRESHOLD_CENTS = 30.0; // cents
+  static const double semitoneCents = 100.0;
+  static const double octaveCents = 1200.0;
+  static const double vibratoMinRate = 4.0;
+  static const double vibratoMaxRate = 8.0;
+  static const double vibratoMinDepth = 20.0;
+  static const int timingThresholdMs = 200;
+  static const double stabilityThresholdCents = 10.0;
 
   /// メインの比較処理
   /// DTWアルゴリズムで時間同期を行い、詳細分析を実行
@@ -165,7 +165,7 @@ class PitchComparisonService {
     if (frequency <= 0) return 0.0;
     // A4 (440Hz) を基準とする
     const double referenceFreq = 440.0;
-    return OCTAVE_CENTS * (math.log(frequency / referenceFreq) / math.ln2);
+    return octaveCents * (math.log(frequency / referenceFreq) / math.ln2);
   }
 
   /// アライメント結果からセント差分リストを抽出
@@ -182,7 +182,7 @@ class PitchComparisonService {
     final validPitches = pitches.where((p) => p > 0).toList();
     
     if (validPitches.length < 3) {
-      return PitchStabilityAnalysis(
+      return const PitchStabilityAnalysis(
         stabilityScore: 0.0,
         pitchVariance: 0.0,
         averageDeviation: 0.0,
@@ -238,7 +238,7 @@ class PitchComparisonService {
           segment.length;
 
       final stabilityScore = math.max(0.0, 100.0 - math.sqrt(variance) * 3);
-      final isStable = math.sqrt(variance) < STABILITY_THRESHOLD_CENTS;
+      final isStable = math.sqrt(variance) < stabilityThresholdCents;
 
       segments.add(PitchStabilitySegment(
         startIndex: i,
@@ -260,7 +260,7 @@ class PitchComparisonService {
     final validPitches = pitches.where((p) => p > 0).toList();
     
     if (validPitches.length < 20) {
-      return VibratoAnalysis(
+      return const VibratoAnalysis(
         vibratoDetected: false,
         vibratoRate: 0.0,
         vibratoDepth: 0.0,
@@ -372,9 +372,9 @@ class PitchComparisonService {
     final estimatedRate = (zeroCrossings / 2.0) * frameRate / segment.length;
     final depth = rms * 2.0; // セント単位での深さ近似
 
-    final isVibrato = estimatedRate >= VIBRATO_MIN_RATE &&
-        estimatedRate <= VIBRATO_MAX_RATE &&
-        depth >= VIBRATO_MIN_DEPTH;
+    final isVibrato = estimatedRate >= vibratoMinRate &&
+        estimatedRate <= vibratoMaxRate &&
+        depth >= vibratoMinDepth;
 
     return {
       'isVibrato': isVibrato,
@@ -444,7 +444,7 @@ class PitchComparisonService {
     double frameLength,
   ) async {
     if (alignedPairs.isEmpty) {
-      return TimingAccuracyAnalysis(
+      return const TimingAccuracyAnalysis(
         accuracyScore: 0.0,
         averageTimeOffset: 0.0,
         maxTimeOffset: 0.0,
@@ -468,13 +468,13 @@ class PitchComparisonService {
         referenceIndex: pair.referenceIndex,
         singingIndex: pair.singingIndex,
         timeOffset: timeOffset,
-        isSignificant: offsetAbs > TIMING_THRESHOLD_MS,
+        isSignificant: offsetAbs > timingThresholdMs,
       ));
 
       totalOffset += offsetAbs;
       maxOffset = math.max(maxOffset, offsetAbs);
 
-      if (offsetAbs > TIMING_THRESHOLD_MS) {
+      if (offsetAbs > timingThresholdMs) {
         significantDelays++;
       }
     }
@@ -526,21 +526,21 @@ class PitchComparisonService {
       overallScore: 0.0,
       centDifferences: [],
       alignedPitches: [],
-      stabilityAnalysis: PitchStabilityAnalysis(
+      stabilityAnalysis: const PitchStabilityAnalysis(
         stabilityScore: 0.0,
         pitchVariance: 0.0,
         averageDeviation: 0.0,
         segments: [],
         unstableRegionCount: 0,
       ),
-      vibratoAnalysis: VibratoAnalysis(
+      vibratoAnalysis: const VibratoAnalysis(
         vibratoDetected: false,
         vibratoRate: 0.0,
         vibratoDepth: 0.0,
         vibratoSegments: [],
         vibratoRegularityScore: 0.0,
       ),
-      timingAnalysis: TimingAccuracyAnalysis(
+      timingAnalysis: const TimingAccuracyAnalysis(
         accuracyScore: 0.0,
         averageTimeOffset: 0.0,
         maxTimeOffset: 0.0,
@@ -585,7 +585,7 @@ class PitchComparisonService {
     // 簡易分析
     final stabilityAnalysis = await _analyzePitchStability(singingPitches, 16000, 1024);
     final vibratoAnalysis = await _analyzeVibrato(singingPitches, 16000, 1024);
-    final timingAnalysis = TimingAccuracyAnalysis(
+    const timingAnalysis = TimingAccuracyAnalysis(
       accuracyScore: 100.0, // シンプル版では完全同期と仮定
       averageTimeOffset: 0.0,
       maxTimeOffset: 0.0,
