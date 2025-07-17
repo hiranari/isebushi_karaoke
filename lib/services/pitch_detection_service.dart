@@ -6,18 +6,16 @@ import 'audio_processing_service.dart';
 
 /// ピッチ検出を担当するサービスクラス
 class PitchDetectionService {
-  static const int DEFAULT_SAMPLE_RATE = 16000;
-  static const int DEFAULT_BUFFER_SIZE = 1024;
+  static const int DEFAULT_SAMPLE_RATE = 44100;
+  static const int DEFAULT_BUFFER_SIZE = 2048;
   static const double MIN_PITCH_HZ = 80.0; // 最低ピッチ（E2付近）
   static const double MAX_PITCH_HZ = 2000.0; // 最高ピッチ（B6付近）
 
-  late final PitchDetector _pitchDetector;
   bool _isInitialized = false;
 
   /// PitchDetectionServiceの初期化
   void initialize() {
     if (!_isInitialized) {
-      _pitchDetector = PitchDetector(DEFAULT_SAMPLE_RATE, DEFAULT_BUFFER_SIZE);
       _isInitialized = true;
     }
   }
@@ -36,8 +34,14 @@ class PitchDetectionService {
       // PCMデータを正規化
       final normalizedPcm = AudioProcessingService.normalizePcmData(pcmData);
 
+      // Int16ListをUint8Listに変換
+      final uint8Pcm = Uint8List.fromList(normalizedPcm.expand((sample) => [
+        sample & 0xFF,        // 下位バイト
+        (sample >> 8) & 0xFF, // 上位バイト
+      ]).toList());
+
       // ピッチ検出実行
-      final pitches = await _analyzePitchFromPcm(normalizedPcm);
+      final pitches = await _analyzePitchFromPcm(uint8Pcm, DEFAULT_SAMPLE_RATE);
 
       return AudioAnalysisResult(
         pitches: pitches,
@@ -64,8 +68,14 @@ class PitchDetectionService {
       // PCMデータを正規化
       final normalizedPcm = AudioProcessingService.normalizePcmData(pcmData);
 
+      // Int16ListをUint8Listに変換
+      final uint8Pcm = Uint8List.fromList(normalizedPcm.expand((sample) => [
+        sample & 0xFF,        // 下位バイト
+        (sample >> 8) & 0xFF, // 上位バイト
+      ]).toList());
+
       // ピッチ検出実行
-      final pitches = await _analyzePitchFromPcm(normalizedPcm);
+      final pitches = await _analyzePitchFromPcm(uint8Pcm, DEFAULT_SAMPLE_RATE);
 
       return AudioAnalysisResult(
         pitches: pitches,
@@ -78,97 +88,46 @@ class PitchDetectionService {
     }
   }
 
-  /// PCMデータからピッチを解析
-  ///
-  /// [pcmData] 解析対象のPCMデータ
-  /// 戻り値: 検出されたピッチのリスト
-  Future<List<double>> _analyzePitchFromPcm(Int16List pcmData) async {
-    final pitches = <double>[];
+  /// PCMデータからピッチを検出する
+  /// 
+  /// [pcmData] - 16bit PCM audio data (Little Endian)
+  /// [sampleRate] - サンプリングレート (Hz)
+  /// Returns: List of detected pitches in Hz (0 means no pitch detected)
+  Future<List<double>> _analyzePitchFromPcm(Uint8List pcmData, int sampleRate) async {
+    try {
+      final detector = PitchDetector(
+        audioSampleRate: sampleRate.toDouble(),
+        bufferSize: 2048,
+      );
 
-    // PCMデータをオーバーラップありでチャンクに分割
-    final chunks = AudioProcessingService.splitPcmIntoChunks(
-      pcmData,
-      DEFAULT_BUFFER_SIZE,
-      overlap: DEFAULT_BUFFER_SIZE ~/ 2,
-    );
-
-    // 各チャンクでピッチ検出
-    for (int i = 0; i < chunks.length; i++) {
-      final chunk = chunks[i];
-
-      // 音量チェック（無音区間の除外）
-      if (_isSilent(chunk)) {
-        pitches.add(0.0);
-        continue;
-      }
-
-      try {
-        final result = _pitchDetector.getPitch(chunk);
-
-        if (result.pitched && result.pitch >= MIN_PITCH_HZ && result.pitch <= MAX_PITCH_HZ) {
-          pitches.add(result.pitch);
-        } else {
+      final pitches = <double>[];
+      const chunkSize = 2048 * 2; // 16bit = 2 bytes per sample
+      
+      // PCMデータをチャンクに分割して解析
+      for (int i = 0; i < pcmData.length - chunkSize; i += chunkSize) {
+        final chunk = pcmData.sublist(i, i + chunkSize);
+        
+        try {
+          // pitch_detector_dartの正しいAPIを使用してピッチを検出
+          final result = await detector.getPitchFromIntBuffer(chunk);
+          
+          // 結果が有効な場合のみピッチを追加
+          if (result.pitched && result.probability > 0.8) {
+            pitches.add(result.pitch);
+          } else {
+            pitches.add(0.0); // ピッチが検出されなかった場合
+          }
+        } catch (e) {
+          // エラーの場合は0を追加
           pitches.add(0.0);
         }
-      } catch (e) {
-        // 個別チャンクのエラーは無音として扱う
-        pitches.add(0.0);
-      }
-    }
-
-    // ピッチデータの後処理
-    return _postProcessPitches(pitches);
-  }
-
-  /// 音量が小さすぎる（無音）かどうかを判定
-  bool _isSilent(List<double> samples) {
-    const double silenceThreshold = 500.0; // 16bit PCMでの閾値
-
-    double rms = 0.0;
-    for (final sample in samples) {
-      rms += sample * sample;
-    }
-    rms = math.sqrt(rms / samples.length);
-
-    return rms < silenceThreshold;
-  }
-
-  /// ピッチデータの後処理
-  /// ノイズ除去や平滑化を行う
-  List<double> _postProcessPitches(List<double> pitches) {
-    if (pitches.length < 3) return pitches;
-
-    final processed = <double>[];
-
-    for (int i = 0; i < pitches.length; i++) {
-      if (pitches[i] == 0.0) {
-        processed.add(0.0);
-        continue;
       }
 
-      // 前後のピッチとの差が大きすぎる場合はノイズとして除去
-      if (i > 0 && i < pitches.length - 1) {
-        final prev = pitches[i - 1];
-        final next = pitches[i + 1];
-        final current = pitches[i];
-
-        // 前後のピッチが有効値の場合の妥当性チェック
-        if (prev > 0 && next > 0) {
-          final avgNeighbor = (prev + next) / 2;
-          final deviation = (current - avgNeighbor).abs();
-
-          // 平均から50Hz以上離れている場合はノイズとして除去
-          if (deviation > 50.0) {
-            processed.add(0.0);
-            continue;
-          }
-        }
-      }
-
-      processed.add(pitches[i]);
+      return pitches;
+    } catch (e) {
+      print('ピッチ検出エラー: $e');
+      return [];
     }
-
-    return processed;
   }
 
   /// ピッチデータの平滑化処理
@@ -176,7 +135,7 @@ class PitchDetectionService {
   /// [pitches] 平滑化対象のピッチデータ
   /// [windowSize] 平滑化ウィンドウサイズ
   /// 戻り値: 平滑化されたピッチデータ
-  static List<double> smoothPitches(List<double> pitches, int windowSize) {
+  List<double> smoothPitches(List<double> pitches, int windowSize) {
     if (pitches.length <= windowSize) return pitches;
 
     final smoothed = <double>[];
@@ -208,7 +167,7 @@ class PitchDetectionService {
   }
 
   /// ピッチデータの統計情報を取得
-  static Map<String, double> getPitchStatistics(List<double> pitches) {
+  Map<String, double> getPitchStatistics(List<double> pitches) {
     final validPitches = pitches.where((p) => p > 0).toList();
 
     if (validPitches.isEmpty) {

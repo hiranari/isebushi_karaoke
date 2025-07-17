@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'song_select_page.dart';
-import 'karaoke_page.dart';
+import 'pages/karaoke_page.dart';
 
 void main() => runApp(const MyApp());
 

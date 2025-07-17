@@ -1,12 +1,17 @@
 name: isebushi_karaoke
 description: "A new Flutter project."
 
+# SDK制約を追加
+environment:
+  sdk: '^3.8.0'
+  flutter: ">=3.0.0"
+
 dependencies:
   flutter:
     sdk: flutter
   just_audio: ^0.9.36
-  record: ^5.0.4
-  pitch_detector_dart: ^2.0.1
+  record: ^6.0.0
+  pitch_detector_dart: ^0.0.7
   permission_handler: ^11.0.1
   path_provider: ^2.1.1  # Phase 1で追加
 
@@ -19,11 +24,14 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
     - assets/icon/icon.png
     - assets/splash/splash.png
     - assets/images/
     - assets/sounds/
+    - assets/pitch/
+    - assets/data/song.json
 
 flutter_icons:
   android: true
@@ -31,12 +39,11 @@ flutter_icons:
   image_path: "assets/icon/icon.png"
 
 flutter_native_splash:
-  color: "#ffffff" # 背景色
+  color: "#ffffff"
   image: assets/splash/splash.png
   android_12:
     image: assets/splash/splash.png
     icon_background_color: "#ffffff"
-    # アダプティブアイコンを無効化
     android_gravity: fill
   web: false
 
@@ -44,19 +51,15 @@ flutter_native_splash:
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
-flutter:
+# flutter: このセクションは上記に統合済み
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
-  uses-material-design: true
+  # uses-material-design: true このオプションは上記に移動済み
 
   # To add assets to your application, add an assets section, like this:
-  assets:
-    - assets/icon/icon.png
-    - assets/splash/splash.png
-    - assets/images/
-    - assets/sounds/
+  # assets: このセクションは上記に統合済み
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

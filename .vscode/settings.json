@@ -1,11 +1,50 @@
-{
-    "dart.lineLength": 100,
-    "editor.formatOnSave": true,
-    "dart.previewFlutterUiGuides": true,
-    "dart.showTodos": true,
-    "editor.rulers": [
-        100
-    ],
-    "editor.wordWrap": "wordWrapColumn",
-    "editor.wordWrapColumn": 100
-}
+```yaml
+name: isebushi_karaoke
+description: "A new Flutter project."
+
+# SDK制約を追加
+environment:
+  sdk: '^3.8.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  just_audio: ^0.9.36
+  record: ^5.0.4
+  pitch_detector_dart: ^2.0.1
+  permission_handler: ^11.0.1
+  path_provider: ^2.1.1  # Phase 1で追加
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icon/icon.png
+    - assets/splash/splash.png
+    - assets/images/
+    - assets/sounds/
+    - assets/pitch/
+    - assets/data/song.json
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/splash/splash.png
+  android_12:
+    image: assets/splash/splash.png
+    icon_background_color: "#ffffff"
+    android_gravity: fill
+  web: false
+```
