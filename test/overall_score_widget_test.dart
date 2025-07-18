@@ -132,12 +132,12 @@ void main() {
         songTitle: '完璧な歌唱',
         timestamp: DateTime.now(),
         totalScore: 100.0,
-        scoreBreakdown: ScoreBreakdown(
+        scoreBreakdown: const ScoreBreakdown(
           pitchAccuracyScore: 100.0,
           stabilityScore: 100.0,
           timingScore: 100.0,
         ),
-        pitchAnalysis: PitchAnalysis(
+        pitchAnalysis: const PitchAnalysis(
           averageDeviation: 0.0,
           maxDeviation: 0.0,
           correctNotes: 100,
@@ -145,7 +145,7 @@ void main() {
           pitchPoints: [],
           deviationHistory: [],
         ),
-        timingAnalysis: TimingAnalysis(
+        timingAnalysis: const TimingAnalysis(
           averageLatency: 0.0,
           maxLatency: 0.0,
           earlyNotes: 0,
@@ -153,7 +153,7 @@ void main() {
           onTimeNotes: 100,
           latencyHistory: [],
         ),
-        stabilityAnalysis: StabilityAnalysis(
+        stabilityAnalysis: const StabilityAnalysis(
           averageVariation: 0.0,
           maxVariation: 0.0,
           stableNotes: 100,
@@ -181,12 +181,12 @@ void main() {
         songTitle: '練習が必要',
         timestamp: DateTime.now(),
         totalScore: 30.0,
-        scoreBreakdown: ScoreBreakdown(
+        scoreBreakdown: const ScoreBreakdown(
           pitchAccuracyScore: 30.0,
           stabilityScore: 25.0,
           timingScore: 35.0,
         ),
-        pitchAnalysis: PitchAnalysis(
+        pitchAnalysis: const PitchAnalysis(
           averageDeviation: 50.0,
           maxDeviation: 80.0,
           correctNotes: 30,
@@ -194,7 +194,7 @@ void main() {
           pitchPoints: [],
           deviationHistory: [],
         ),
-        timingAnalysis: TimingAnalysis(
+        timingAnalysis: const TimingAnalysis(
           averageLatency: 0.2,
           maxLatency: 0.5,
           earlyNotes: 30,
@@ -202,7 +202,7 @@ void main() {
           onTimeNotes: 30,
           latencyHistory: [],
         ),
-        stabilityAnalysis: StabilityAnalysis(
+        stabilityAnalysis: const StabilityAnalysis(
           averageVariation: 40.0,
           maxVariation: 70.0,
           stableNotes: 25,
@@ -231,12 +231,12 @@ void main() {
         songTitle: 'Aランク',
         timestamp: DateTime.now(),
         totalScore: 85.0,
-        scoreBreakdown: ScoreBreakdown(
+        scoreBreakdown: const ScoreBreakdown(
           pitchAccuracyScore: 85.0,
           stabilityScore: 80.0,
           timingScore: 85.0,
         ),
-        pitchAnalysis: PitchAnalysis(
+        pitchAnalysis: const PitchAnalysis(
           averageDeviation: 10.0,
           maxDeviation: 20.0,
           correctNotes: 85,
@@ -244,7 +244,7 @@ void main() {
           pitchPoints: [],
           deviationHistory: [],
         ),
-        timingAnalysis: TimingAnalysis(
+        timingAnalysis: const TimingAnalysis(
           averageLatency: 0.03,
           maxLatency: 0.08,
           earlyNotes: 5,
@@ -252,7 +252,7 @@ void main() {
           onTimeNotes: 85,
           latencyHistory: [],
         ),
-        stabilityAnalysis: StabilityAnalysis(
+        stabilityAnalysis: const StabilityAnalysis(
           averageVariation: 8.0,
           maxVariation: 15.0,
           stableNotes: 80,
