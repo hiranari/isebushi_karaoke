@@ -185,6 +185,14 @@ class PitchVisualizerPainter extends CustomPainter {
   }
 
   /// 現在のピッチインジケーターの描画
+  /// 
+  /// 録音中の現在のピッチを視覚的に表示します。
+  /// プロバイダーから取得したcurrentPitchに基づいて、リアルタイムで更新されます。
+  /// 
+  /// @param canvas 描画キャンバス
+  /// @param size 描画領域のサイズ
+  /// @ensures 録音中でピッチが検出されている場合のみ描画される
+  /// @ensures 緑色の円で現在のピッチを表示し、脈動効果を追加
   void _drawCurrentPitchIndicator(Canvas canvas, Size size) {
     if (currentPitch == null || currentPitch! <= 0) return;
 

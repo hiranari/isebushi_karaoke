@@ -302,11 +302,161 @@ CIと同じチェックをローカルで実行するためのスクリプトを
 
 このスクリプトはプッシュ前に実行することで、CIでの失敗を事前に防ぐことができます。
 
-## 開発者向け情報
+## 状態管理・UI分岐・Provider活用ルール
 
+### 状態管理アーキテクチャ
+
+このアプリケーションは **Provider パターン** を使用した状態管理を採用しています。以下のルールに従って開発してください。
+
+#### 1. KaraokeSessionProvider の責務
+
+**主要な責務:**
+- 歌唱セッションのライフサイクル管理（準備→録音→分析→完了）
+- リアルタイムピッチデータの管理
+- 録音状態の管理
+- 分析結果の管理
+- UI状態の通知
+
+**状態遷移フロー:**
+```
+ready → recording → analyzing → completed
+  ↓         ↓           ↓
+error ← error ← error
+```
+
+#### 2. リアルタイムピッチ検出の仕組み
+
+**Provider での実装:**
+```dart
+// ピッチ値の更新（UI に自動反映）
+void updateCurrentPitch(double? pitch) {
+  _currentPitch = pitch;
+  
+  // 録音中の場合はピッチを記録
+  if (_isRecording && pitch != null && pitch > 0) {
+    _recordedPitches.add(pitch);
+  }
+  
+  notifyListeners(); // UI に変更を通知
+}
+```
+
+**UI での消費:**
+```dart
+Consumer<KaraokeSessionProvider>(
+  builder: (context, sessionProvider, child) {
+    return RealtimePitchVisualizer(
+      currentPitch: sessionProvider.currentPitch,
+      isRecording: sessionProvider.isRecording,
+      // ... その他のプロパティ
+    );
+  },
+)
+```
+
+#### 3. UI分岐のルール
+
+**状態に応じた UI の切り替え:**
+```dart
+// セッション状態による分岐
+switch (sessionProvider.state) {
+  case KaraokeSessionState.ready:
+    // 録音開始ボタンを有効化
+    break;
+  case KaraokeSessionState.recording:
+    // 録音停止ボタンを表示、リアルタイムピッチを可視化
+    break;
+  case KaraokeSessionState.analyzing:
+    // 分析中のローディング表示
+    break;
+  case KaraokeSessionState.completed:
+    // 結果表示、スコア表示
+    break;
+  case KaraokeSessionState.error:
+    // エラーメッセージ表示
+    break;
+}
+```
+
+**録音状態による分岐:**
+```dart
+// 録音状態による UI 制御
+if (sessionProvider.isRecording) {
+  // ピッチビジュアライザーをアクティブ表示
+  // 録音停止ボタンを表示
+} else {
+  // 録音開始ボタンを表示
+}
+```
+
+#### 4. Provider活用のベストプラクティス
+
+**✅ 推奨:**
+- `Consumer` または `context.watch()` を使用してリアクティブにUI更新
+- 状態変更は必ず Provider のメソッドを通して実行
+- `notifyListeners()` の呼び出しを忘れない
+- 単一責任の原則に従い、Provider の責務を明確にする
+
+**❌ 禁止:**
+- Provider の private フィールドに直接アクセス
+- UI コンポーネント内でビジネスロジックを実装
+- `notifyListeners()` の不適切な呼び出し（過度な頻度など）
+- 状態の直接変更（Provider のメソッドを経由しない）
+
+#### 5. リアルタイム更新の実装パターン
+
+**録音中のリアルタイム更新:**
+```dart
+// 定期的なピッチ更新
+Timer.periodic(const Duration(milliseconds: 100), (timer) {
+  if (sessionProvider.isRecording) {
+    // ピッチ検出ロジック
+    final detectedPitch = detectPitch();
+    sessionProvider.updateCurrentPitch(detectedPitch);
+  } else {
+    timer.cancel();
+  }
+});
+```
+
+**UI での自動更新:**
+```dart
+// Consumer を使用した自動更新
+Consumer<KaraokeSessionProvider>(
+  builder: (context, provider, child) {
+    return Text('現在のピッチ: ${provider.currentPitch?.toStringAsFixed(1) ?? "---"}Hz');
+  },
+)
+```
+
+#### 6. エラーハンドリングパターン
+
+**Provider でのエラー処理:**
+```dart
+void setError(String message) {
+  _errorMessage = message;
+  _state = KaraokeSessionState.error;
+  notifyListeners();
+}
+```
+
+**UI でのエラー表示:**
+```dart
+if (sessionProvider.state == KaraokeSessionState.error) {
+  return ErrorWidget(message: sessionProvider.errorMessage);
+}
+```
+
+### 開発者向けガイドライン
+
+1. **新しい状態の追加**: `KaraokeSessionState` enum に追加し、適切な状態遷移を実装
+2. **新しいUI状態の追加**: Provider にプロパティを追加し、getter と setter を提供
+3. **リアルタイム機能の追加**: `updateCurrentPitch()` パターンを参考に実装
+4. **テスト**: 状態遷移とUI更新の両方をテストすることを推奨
+
+## 開発者向け情報
 ### ビルド設定
 - **最小 SDK**: Android API 24, iOS 12.0
-- **NDK バージョン**: 27.0.12077973
 - **Gradle**: 8.x系
 - **Flutter SDK**: 3.8.0以上
 
