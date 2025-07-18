@@ -89,7 +89,7 @@ class OverallScoreWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: color, width: 2),
           ),
@@ -181,7 +181,7 @@ class OverallScoreWidget extends StatelessWidget {
               const SizedBox(height: 4),
               LinearProgressIndicator(
                 value: score / 100,
-                backgroundColor: color.withOpacity(0.2),
+                backgroundColor: color.withValues(alpha: 0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ],
