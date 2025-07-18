@@ -92,6 +92,18 @@ class ScoringService {
     List<double> referencePitches,
     List<double> recordedPitches,
   ) {
+    // 空データの場合は空の分析結果を返す
+    if (referencePitches.isEmpty || recordedPitches.isEmpty) {
+      return const PitchAnalysis(
+        averageDeviation: 0.0,
+        maxDeviation: 0.0,
+        correctNotes: 0,
+        totalNotes: 0,
+        pitchPoints: [],
+        deviationHistory: [],
+      );
+    }
+    
     final pitchPoints = <PitchPoint>[];
     final deviations = <double>[];
     int correctNotes = 0;
@@ -184,6 +196,18 @@ class ScoringService {
     List<double> recordedPitches,
     List<double>? recordingTimestamps,
   ) {
+    // 空データの場合は空の分析結果を返す
+    if (referencePitches.isEmpty || recordedPitches.isEmpty) {
+      return const TimingAnalysis(
+        averageLatency: 0.0,
+        maxLatency: 0.0,
+        earlyNotes: 0,
+        lateNotes: 0,
+        onTimeNotes: 0,
+        latencyHistory: [],
+      );
+    }
+    
     // TODO: 実際のタイミング分析を実装
     // 現在は基本的な実装のみ
     
@@ -242,6 +266,9 @@ class ScoringService {
 
   /// タイミングスコアの計算（0-100）
   static double _calculateTimingScore(TimingAnalysis analysis) {
+    // 空データの場合は0.0を返す
+    if (analysis.onTimeNotes == 0) return 0.0;
+    
     // TODO: 実際のタイミングスコア計算を実装
     // 現在は基本値を返す
     return 85.0; // プレースホルダー

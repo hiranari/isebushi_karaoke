@@ -24,180 +24,179 @@ class OverallScoreWidget extends StatelessWidget {
       margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // タイトル
-            Text(
-              '歌唱結果',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              result.songTitle,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // 総合スコア
-                        // メインスコア表示
-            _buildScoreDisplay(context, score, rank),
-            
-            const SizedBox(height: 16),
-
-            // コメント
-            Text(
-              comment,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 32),
-
-            // 基本情報表示
-            _buildBasicInfo(context),
-
-            const SizedBox(height: 24),
-
-            // 詳細ボタン
-            if (onShowDetails != null)
-              ElevatedButton.icon(
-                onPressed: onShowDetails,
-                icon: const Icon(Icons.analytics),
-                label: const Text('詳細分析を見る'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 楽曲タイトル
+              Text(
+                result.songTitle,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
               ),
-          ],
+              const SizedBox(height: 24),
+
+              // メインスコア表示
+              _buildScoreDisplay(context, score, rank),
+              const SizedBox(height: 16),
+
+              // コメント
+              Text(
+                comment,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // スコア内訳
+              _buildScoreBreakdown(context),
+              const SizedBox(height: 24),
+
+              // 詳細ボタン（コールバックが提供されている場合のみ）
+              if (onShowDetails != null)
+                ElevatedButton(
+                  onPressed: onShowDetails,
+                  child: const Text('詳細を見る'),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  /// メインスコア表示ウィジェット
   Widget _buildScoreDisplay(BuildContext context, double score, String rank) {
+    final color = _getScoreColor(score);
+    
     return Column(
       children: [
-        // ランク表示
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _getRankColor(rank),
-          ),
-          child: Center(
-            child: Text(
-              rank,
-              style: const TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+        // スコア数値
+        Text(
+          score.toInt().toString(),
+          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         
-        // スコア数値
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              score.toStringAsFixed(1),
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: _getRankColor(rank),
-              ),
+        // ランク
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color, width: 2),
+          ),
+          child: Text(
+            rank,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(width: 4),
-            Text(
-              '点',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  /// 基本情報表示
-  Widget _buildBasicInfo(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '楽曲',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
-              ),
-              Text(
-                result.songTitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+  /// スコア内訳表示ウィジェット
+  Widget _buildScoreBreakdown(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'スコア内訳',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'スコア',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
-              ),
-              Text(
-                '${result.totalScore.toStringAsFixed(1)}点',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        
+        _buildScoreItem(
+          context,
+          '音程精度',
+          result.scoreBreakdown.pitchAccuracyScore,
+          Icons.music_note,
+          Colors.blue,
+        ),
+        const SizedBox(height: 12),
+        
+        _buildScoreItem(
+          context,
+          '安定性',
+          result.scoreBreakdown.stabilityScore,
+          Icons.graphic_eq,
+          Colors.green,
+        ),
+        const SizedBox(height: 12),
+        
+        _buildScoreItem(
+          context,
+          'タイミング',
+          result.scoreBreakdown.timingScore,
+          Icons.access_time,
+          Colors.orange,
+        ),
+      ],
     );
   }
 
-  Color _getRankColor(String rank) {
-    switch (rank) {
-      case 'S':
-        return Colors.purple;
-      case 'A':
-        return Colors.red;
-      case 'B':
-        return Colors.orange;
-      case 'C':
-        return Colors.yellow[700]!;
-      case 'D':
-        return Colors.blue;
-      case 'E':
-        return Colors.grey;
-      default:
-        return Colors.grey;
-    }
+  /// 個別スコア項目ウィジェット
+  Widget _buildScoreItem(
+    BuildContext context,
+    String label,
+    double score,
+    IconData icon,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    '${score.toInt()}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              LinearProgressIndicator(
+                value: score / 100,
+                backgroundColor: color.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// スコアに応じた色を取得
+  Color _getScoreColor(double score) {
+    if (score >= 90) return const Color(0xFFFFD700); // Gold color
+    if (score >= 80) return Colors.green;
+    if (score >= 70) return Colors.orange;
+    if (score >= 60) return Colors.amber;
+    return Colors.red;
   }
 }
