@@ -130,7 +130,7 @@ class AudioProcessingService {
     
     // 歌唱データに近い複雑な波形を生成
     // 基本周波数と倍音を組み合わせた音声パターン
-    final fundamentalFreqs = [146.83, 164.81, 174.61, 196.00, 220.00, 246.94]; // D3-B3
+    final fundamentalFrequencies = [146.83, 164.81, 174.61, 196.00, 220.00, 246.94]; // D3-B3
     final harmonics = [1.0, 0.5, 0.25, 0.125]; // 倍音の強度
     
     for (int i = 0; i < sampleCount; i++) {
@@ -141,18 +141,18 @@ class AudioProcessingService {
       final envelope = _calculateEnvelope(timeProgress);
       
       // 基本周波数の選択（時間に応じて変化）
-      final freqIndex = (timeProgress * fundamentalFreqs.length).floor() % fundamentalFreqs.length;
-      final baseFreq = fundamentalFreqs[freqIndex];
+      final frequencyIndex = (timeProgress * fundamentalFrequencies.length).floor() % fundamentalFrequencies.length;
+      final baseFrequency = fundamentalFrequencies[frequencyIndex];
       
       // 倍音成分を加算
       for (int h = 0; h < harmonics.length; h++) {
         final harmonic = harmonics[h];
-        final freq = baseFreq * (h + 1);
+        final frequency = baseFrequency * (h + 1);
         
         // 位相変調を加えてより自然な音に
         final phaseModulation = 0.1 * math.sin(2 * math.pi * 5 * i / defaultSampleRate);
         sample += harmonic * envelope * math.sin(
-          2 * math.pi * freq * i / defaultSampleRate + phaseModulation
+          2 * math.pi * frequency * i / defaultSampleRate + phaseModulation
         );
       }
       
@@ -172,7 +172,7 @@ class AudioProcessingService {
   /// [timeProgress] 0.0-1.0の時間進行
   /// 戻り値: 音量係数
   static double _calculateEnvelope(double timeProgress) {
-    // ADSR（Attack, Decay, Sustain, Release）風の包絡線
+    // Attack, Decay, Sustain, Release風の包絡線
     if (timeProgress < 0.1) {
       // Attack: 最初10%で音量が上がる
       return timeProgress / 0.1;
@@ -188,13 +188,7 @@ class AudioProcessingService {
     }
   }
 
-  /// ダミーPCMデータ生成（開発用）
-  /// 後方互換性のために保持
-  static Int16List _generateDummyPcmData(int originalSize) {
-    // 新しい実装を使用
-    final estimatedSize = _estimatePcmSizeFromMp3(originalSize);
-    return _generateRealisticAudioPattern(estimatedSize);
-  }
+
 
   /// PCMデータの音量を正規化
   static Int16List normalizePcmData(Int16List pcmData) {
