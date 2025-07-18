@@ -20,7 +20,7 @@ void main() {
         expect(provider.referencePitches, equals([220.0, 230.0, 240.0]));
         expect(provider.state, equals(KaraokeSessionState.ready));
         expect(provider.recordedPitches, isEmpty);
-        final expected = [220.0, 230.0, 240.0];
+        const expected = [220.0, 230.0, 240.0];
       });
 
       test('should clear previous session data on reinitialization', () {
