@@ -191,7 +191,7 @@ void main() {
       expect(find.byType(RealtimePitchVisualizer), findsOneWidget);
     });
 
-    test('状態遷移が正しく動作する', () {
+    test('状態遷移が正しく動作する', () async {
       // 初期状態
       expect(provider.state, KaraokeSessionState.ready);
       expect(provider.isRecording, false);
@@ -207,11 +207,13 @@ void main() {
 
       // 録音停止
       provider.stopRecording();
-      expect(provider.state, KaraokeSessionState.analyzing);
       expect(provider.isRecording, false);
 
-      // 将来的に analyzing → completed または error に遷移
-      // （実際の分析処理は非同期で実行される）
+      // 分析が完了するまで待つ
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // 分析完了後の状態を確認
+      expect(provider.state, KaraokeSessionState.completed);
     });
   });
 }

@@ -20,8 +20,8 @@ void main() {
     });
 
     test('セッション初期化が正しく動作する', () {
-      final songTitle = 'テスト楽曲';
-      final referencePitches = [220.0, 440.0, 880.0];
+      const songTitle = 'テスト楽曲';
+      const referencePitches = [220.0, 440.0, 880.0];
 
       provider.initializeSession(songTitle, referencePitches);
 
@@ -66,16 +66,22 @@ void main() {
       expect(provider.currentPitch, 880.0);
     });
 
-    test('録音停止時の状態変更が正しく動作する', () {
+    test('録音停止時の状態変更が正しく動作する', () async {
       provider.initializeSession('テスト楽曲', [220.0]);
       provider.startRecording();
       provider.updateCurrentPitch(330.0);
 
       provider.stopRecording();
 
-      expect(provider.state, KaraokeSessionState.analyzing);
+      // 録音停止後の状態を確認
       expect(provider.isRecording, false);
       expect(provider.recordedPitches, [330.0]);
+      
+      // 分析が完了するまで待つ
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // 分析完了後の状態を確認
+      expect(provider.state, KaraokeSessionState.completed);
     });
 
     test('録音停止後はピッチが記録されない', () {

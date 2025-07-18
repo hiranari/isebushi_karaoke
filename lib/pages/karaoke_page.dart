@@ -290,7 +290,7 @@ class _KaraokePageState extends State<KaraokePage> {
       } else {
         // 基準ピッチがない場合は、基本的なピッチを生成
         final random = math.Random();
-        final basePitch = 220.0; // A3
+        const basePitch = 220.0; // A3
         final variation = (random.nextDouble() - 0.5) * 40; // ±20Hzのバリエーション
         final simulatedPitch = basePitch + variation;
         
