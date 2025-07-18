@@ -1,4 +1,4 @@
-package com.example.isebushi_karaoke
+package com.hiranari.isebushi_karaoke
 
 import io.flutter.embedding.android.FlutterActivity
 
