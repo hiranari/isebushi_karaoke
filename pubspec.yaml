@@ -8,7 +8,7 @@ dependencies:
   flutter:
     sdk: flutter
   just_audio: ^0.9.36
-  record: ^5.0.4
+  record: ^6.0.0
   pitch_detector_dart: ^0.0.7
   permission_handler: ^11.0.1
   path_provider: ^2.1.1  # Phase 1で追加
@@ -27,7 +27,6 @@ flutter:
   assets:
     - assets/icon/icon.png
     - assets/splash/splash.png
-    - assets/images/
     - assets/sounds/
     - assets/pitch/
     - assets/data/song.json
