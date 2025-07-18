@@ -88,6 +88,40 @@ class PitchDetectionService {
     }
   }
 
+  /// ファイルシステムからWAVファイルを読み込んでピッチを検出
+  ///
+  /// [filePath] 解析対象のWAVファイルのファイルシステムパス
+  /// 戻り値: ピッチ検出結果
+  Future<AudioAnalysisResult> extractPitchFromWavFile(String filePath) async {
+    initialize();
+
+    try {
+      // WAVファイルからPCMデータを抽出
+      final pcmData = await AudioProcessingService.extractPcmFromWavFile(filePath);
+
+      // PCMデータを正規化
+      final normalizedPcm = AudioProcessingService.normalizePcmData(pcmData);
+
+      // Int16ListをUint8Listに変換
+      final uint8Pcm = Uint8List.fromList(normalizedPcm.expand((sample) => [
+        sample & 0xFF,        // 下位バイト
+        (sample >> 8) & 0xFF, // 上位バイト
+      ]).toList());
+
+      // ピッチ検出実行
+      final pitches = await _analyzePitchFromPcm(uint8Pcm, defaultSampleRate);
+
+      return AudioAnalysisResult(
+        pitches: pitches,
+        sampleRate: defaultSampleRate,
+        createdAt: DateTime.now(),
+        sourceFile: filePath,
+      );
+    } catch (e) {
+      throw PitchDetectionException('WAVファイルピッチ検出に失敗しました: $e');
+    }
+  }
+
   /// PCMデータからピッチを検出する
   /// 
   /// [pcmData] - 16bit PCM audio data (Little Endian)

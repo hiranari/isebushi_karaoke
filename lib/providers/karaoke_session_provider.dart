@@ -106,6 +106,19 @@ class KaraokeSessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 録音ピッチデータの置換
+  /// 
+  /// 実際の録音ファイルから抽出したピッチデータで、リアルタイムで生成された
+  /// シミュレーションピッチを置き換えます。
+  /// 
+  /// @param pitches 実際の録音から抽出されたピッチデータ
+  void replaceRecordedPitches(List<double> pitches) {
+    _recordedPitches.clear();
+    _recordedPitches.addAll(pitches);
+    debugPrint('録音ピッチデータを置換: ${pitches.length}個のピッチ');
+    notifyListeners();
+  }
+
   /// エラー状態の設定
   void setError(String message) {
     _errorMessage = message;
@@ -154,12 +167,34 @@ class KaraokeSessionProvider extends ChangeNotifier {
         throw Exception('楽曲が選択されていません');
       }
 
+      debugPrint('=== 歌唱分析開始 ===');
+      debugPrint('楽曲: $_selectedSongTitle');
+      debugPrint('基準ピッチ数: ${_referencePitches.length}');
+      debugPrint('録音ピッチ数: ${_recordedPitches.length}');
+      
+      // 基準ピッチと録音ピッチの統計情報をログ出力
+      if (_referencePitches.isNotEmpty) {
+        final refAvg = _referencePitches.reduce((a, b) => a + b) / _referencePitches.length;
+        debugPrint('基準ピッチ平均: ${refAvg.toStringAsFixed(2)}Hz');
+      }
+      
+      if (_recordedPitches.isNotEmpty) {
+        final recAvg = _recordedPitches.reduce((a, b) => a + b) / _recordedPitches.length;
+        debugPrint('録音ピッチ平均: ${recAvg.toStringAsFixed(2)}Hz');
+      }
+
       // スコアリングサービスで分析実行
       final result = ScoringService.calculateComprehensiveScore(
         referencePitches: _referencePitches,
         recordedPitches: _recordedPitches,
         songTitle: _selectedSongTitle!,
       );
+
+      debugPrint('総合スコア: ${result.totalScore.toStringAsFixed(1)}');
+      debugPrint('ピッチ精度: ${result.scoreBreakdown.pitchAccuracyScore.toStringAsFixed(1)}');
+      debugPrint('安定性: ${result.scoreBreakdown.stabilityScore.toStringAsFixed(1)}');
+      debugPrint('タイミング: ${result.scoreBreakdown.timingScore.toStringAsFixed(1)}');
+      debugPrint('=== 歌唱分析完了 ===');
 
       // フィードバック生成
       final feedback = FeedbackService.generateFeedback(result);
@@ -178,6 +213,7 @@ class KaraokeSessionProvider extends ChangeNotifier {
       _scoreDisplayMode = ScoreDisplayMode.totalScore;
       
     } catch (e) {
+      debugPrint('分析エラー: $e');
       setError('分析中にエラーが発生しました: $e');
     }
     

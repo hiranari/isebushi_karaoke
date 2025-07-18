@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:math' as math;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../services/pitch_detection_service.dart';
 import '../services/cache_service.dart';
@@ -147,7 +149,7 @@ class _KaraokePageState extends State<KaraokePage> {
       await _player.setAudioSource(AudioSource.asset(audioFile));
       _player.play();
     } catch (e) {
-      _showSnackBar('音源の再生に失敗しました');
+      _showSnackBar('音源の再生に失敗しました: ${e.toString()}');
       
       // フォールバック処理: 代替音源での再生試行
       _tryFallbackAudioPlayback();
@@ -195,6 +197,13 @@ class _KaraokePageState extends State<KaraokePage> {
     }
 
     try {
+      // Androidでは適切なディレクトリに書き込む必要がある
+      // アプリの一時ディレクトリを取得
+      final tempDir = await getTemporaryDirectory();
+      final recordingPath = '${tempDir.path}/my_voice_${DateTime.now().millisecondsSinceEpoch}.wav';
+      
+      debugPrint('録音ファイルパス: $recordingPath');
+      
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
@@ -202,7 +211,7 @@ class _KaraokePageState extends State<KaraokePage> {
           numChannels: 1,
           bitRate: 16000 * 16,
         ),
-        path: 'my_voice.wav',
+        path: recordingPath,
       );
 
       // リアルタイムピッチ検出のためのPCMストリーム購読を開始
@@ -215,7 +224,7 @@ class _KaraokePageState extends State<KaraokePage> {
 
     } catch (e) {
       if (mounted) {
-        _showSnackBar('録音の開始に失敗しました');
+        _showSnackBar('録音の開始に失敗しました: ${e.toString()}');
       }
     }
   }
@@ -231,7 +240,7 @@ class _KaraokePageState extends State<KaraokePage> {
       _setupPitchDetectionTimer();
     } catch (e) {
       if (mounted) {
-        _showSnackBar('リアルタイムピッチ検出の開始に失敗しました: $e');
+        _showSnackBar('リアルタイムピッチ検出の開始に失敗しました: ${e.toString()}');
       }
     }
   }
@@ -261,37 +270,49 @@ class _KaraokePageState extends State<KaraokePage> {
   /// リアルタイムピッチの生成
   /// 
   /// 実際の実装では、PCMデータからピッチを検出しますが、
-  /// 現在は簡易的にピッチを生成します。
+  /// 現在は録音中の仮想ピッチを生成します。
+  /// 録音停止後に実際の録音ファイルから抽出したピッチで置き換えられます。
   void _generateRealtimePitch() {
     if (!mounted) return;
     
     try {
-      // 簡易的なピッチシミュレーション
-      // 実際の実装では、マイクからのPCMデータを使用
+      // 録音中の仮想ピッチ生成（実際の録音とは独立）
+      // 録音停止後に実際の録音ファイルから抽出したピッチで置き換えられる
       final sessionProvider = context.read<KaraokeSessionProvider>();
       final recordedCount = sessionProvider.recordedPitches.length;
       
-      // 基準ピッチがある場合は、それを基準にピッチを生成
+      // より自然なピッチ変動を生成
+      final random = math.Random();
+      
+      // 基準ピッチがある場合は、それを参考にしつつ独立したピッチを生成
       if (sessionProvider.referencePitches.isNotEmpty) {
         final referenceIndex = recordedCount % sessionProvider.referencePitches.length;
         final referencePitch = sessionProvider.referencePitches[referenceIndex];
         
         if (referencePitch > 0) {
-          // 基準ピッチにランダムなバリエーションを加える
-          final random = math.Random();
-          final variation = (random.nextDouble() - 0.5) * 20; // ±10Hzのバリエーション
-          final simulatedPitch = referencePitch + variation;
+          // より大きなバリエーションを加えて、実際の歌唱に近いピッチを生成
+          final variation = (random.nextDouble() - 0.5) * 100; // ±50Hzのバリエーション
+          final pitchDrift = math.sin(recordedCount * 0.1) * 20; // 周期的なピッチドリフト
           
-          sessionProvider.updateCurrentPitch(simulatedPitch);
+          final simulatedPitch = referencePitch + variation + pitchDrift;
+          
+          // 時々無音を挿入して、より自然な歌唱パターンを作る
+          if (random.nextDouble() < 0.1) {
+            sessionProvider.updateCurrentPitch(null);
+          } else {
+            sessionProvider.updateCurrentPitch(simulatedPitch);
+          }
         } else {
           // 無音部分
           sessionProvider.updateCurrentPitch(null);
         }
       } else {
-        // 基準ピッチがない場合は、基本的なピッチを生成
-        final random = math.Random();
-        const basePitch = 220.0; // A3
-        final variation = (random.nextDouble() - 0.5) * 40; // ±20Hzのバリエーション
+        // 基準ピッチがない場合は、より多様なピッチを生成
+        final baseFrequencies = [220.0, 246.94, 261.63, 293.66, 329.63, 369.99, 415.30]; // A3-A4の音階
+        final baseIndex = recordedCount % baseFrequencies.length;
+        final basePitch = baseFrequencies[baseIndex];
+        
+        final variation = (random.nextDouble() - 0.5) * 60; // ±30Hzのバリエーション
         final simulatedPitch = basePitch + variation;
         
         sessionProvider.updateCurrentPitch(simulatedPitch);
@@ -308,10 +329,19 @@ class _KaraokePageState extends State<KaraokePage> {
   /// 録音停止
   Future<void> _stopRecording() async {
     try {
-      await _recorder.stop();
+      final recordingPath = await _recorder.stop();
+      
       // PCMストリームの購読を停止（タイマーは自動で停止される）
       await _pcmStreamSub?.cancel();
       _pcmStreamSub = null;
+      
+      // 録音ファイルが作成されたことをログに記録
+      if (recordingPath != null) {
+        debugPrint('録音ファイルが保存されました: $recordingPath');
+        
+        // 実際の録音ファイルからピッチを抽出
+        await _extractPitchFromRecording(recordingPath);
+      }
       
       // Phase 3: プロバイダーで録音停止と分析実行
       if (mounted) {
@@ -320,7 +350,51 @@ class _KaraokePageState extends State<KaraokePage> {
 
     } catch (e) {
       if (mounted) {
-        _showSnackBar('録音の停止に失敗しました');
+        _showSnackBar('録音の停止に失敗しました: ${e.toString()}');
+      }
+    }
+  }
+
+  /// 録音ファイルからピッチを抽出
+  /// 
+  /// [recordingPath] 録音ファイルのパス
+  Future<void> _extractPitchFromRecording(String recordingPath) async {
+    try {
+      _showSnackBar('録音音声を分析中...');
+      
+      // ファイルの存在と基本情報を確認
+      final file = File(recordingPath);
+      if (!await file.exists()) {
+        throw Exception('録音ファイルが見つかりません: $recordingPath');
+      }
+      
+      final fileSize = await file.length();
+      debugPrint('録音ファイルサイズ: $fileSize バイト');
+      
+      // 録音ファイルからピッチを抽出（ファイルシステム対応）
+      final analysisResult = await _pitchDetectionService.extractPitchFromWavFile(recordingPath);
+      
+      // 抽出したピッチをプロバイダーに設定
+      if (mounted) {
+        final sessionProvider = context.read<KaraokeSessionProvider>();
+        // 既存の録音ピッチをクリアして、実際の録音データで置き換える
+        sessionProvider.replaceRecordedPitches(analysisResult.pitches);
+        
+        debugPrint('録音ピッチ抽出完了: ${analysisResult.pitches.length}個のピッチ');
+        _showSnackBar('録音音声の分析が完了しました');
+      }
+      
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('録音音声の分析に失敗しました: ${e.toString()}');
+        debugPrint('録音ピッチ抽出エラー: $e');
+        
+        // フォールバック処理：シミュレーションデータを使用
+        final sessionProvider = context.read<KaraokeSessionProvider>();
+        if (sessionProvider.recordedPitches.isNotEmpty) {
+          _showSnackBar('録音中のデータを使用してスコアを計算します');
+          debugPrint('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+        }
       }
     }
   }
