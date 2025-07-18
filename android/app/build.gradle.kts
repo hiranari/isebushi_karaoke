@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.isebushi_karaoke"
+    namespace = "com.hiranari.isebushi_karaoke"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -20,8 +20,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.isebushi_karaoke"
+        // アプリケーションID - 実際のプロダクションでは組織のドメインを使用
+        applicationId = "com.hiranari.isebushi_karaoke"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24
@@ -32,8 +32,9 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // リリースビルドの署名設定
+            // プロダクション環境では適切な署名キーを設定する必要があります
+            // 現在は開発用のデバッグキーを使用（`flutter run --release`で動作確認用）
             signingConfig = signingConfigs.getByName("debug")
         }
     }

@@ -66,6 +66,28 @@
 - **ファイル名**: snake_case (例: `pitch_detection_service.dart`)
 - **定数**: UPPER_SNAKE_CASE (例: `DEFAULT_SAMPLE_RATE`)
 
+### 変数名命名規則 ⚠️ 【新設・厳守必須】
+- **省略禁止原則**: 変数名は省略せず、意味が明確に伝わる完全な名前を使用
+- **例**: 
+  - ❌ `fundamentalFreqs` → ✅ `fundamentalFrequencies`
+  - ❌ `freqIndex` → ✅ `frequencyIndex`
+  - ❌ `baseFreq` → ✅ `baseFrequency`
+  - ❌ `avgErr` → ✅ `averageError`
+  - ❌ `maxVal` → ✅ `maximumValue`
+- **可読性優先**: 長い名前でも可読性を重視
+- **スペルチェック辞書**: 専門用語は `.vscode/settings.json` の `cSpell.words` に登録
+- **辞書登録ルール**: 
+  - 省略形ではなく完全な単語を登録
+  - 意味が明確に分かる形で登録
+  - 登録時は意味をコメントで併記することを推奨
+  - プロジェクト固有の単語は `.vscode/project-words.txt` に追加
+
+### スペルチェック管理
+- **辞書ファイル**: `.vscode/project-words.txt` にプロジェクト固有の単語を登録
+- **VS Code設定**: `.vscode/settings.json` でスペルチェック動作を制御
+- **コードブロック**: マークダウンファイルのコードブロック内はスペルチェック対象外
+- **追加方法**: 新しい専門用語は辞書ファイルに追加後、チーム共有
+
 ### エラーハンドリング
 - **必須**: すべての非同期処理にエラーハンドリングを実装
 - **ユーザー通知**: エラー時はSnackBarで適切なメッセージを表示
@@ -81,8 +103,14 @@
   - `use_build_context_synchronously`: BuildContextの適切な使用
   - `constant_identifier_names`: 定数名はlowerCamelCaseに統一
   - `unnecessary_overrides`: 不要なオーバーライドの削除
-  - `deprecated_member_use`: 非推奨APIの使用禁止
+  - `deprecated_member_use`: 非推奨APIの使用禁止（例: `withOpacity` → `withValues`）
+  - `unused_element`: 未使用の要素の削除
 - **コミット基準**: `flutter analyze`で0 issues foundの状態のみコミット可能
+- **テスト実行**: `flutter test`で全てのテストが通ることを確認
+- **品質保証フロー**:
+  1. `flutter analyze` → No issues found!
+  2. `flutter test` → All tests passed!
+  3. 上記2つが完了してからコミット実行
 
 ### Phase 3 専用ルール
 - **スコアリング**: `lib/services/scoring_service.dart` に集約

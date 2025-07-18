@@ -94,10 +94,48 @@ class _KaraokePageState extends State<KaraokePage> {
     } catch (e) {
       setState(() => _analysisStatus = '解析失敗');
       _showSnackBar('ピッチデータの解析に失敗しました: $e');
-      // TODO: フォールバック処理
+      
+      // フォールバック処理: デフォルト値での初期化
+      _handleAnalysisFailure(selectedSong);
     } finally {
       setState(() => _isLoadingReferencePitches = false);
     }
+  }
+
+  /// 分析失敗時のフォールバック処理
+  Future<void> _handleAnalysisFailure(Map<String, String> selectedSong) async {
+    try {
+      // 基本的なピッチデータを生成してセッションを初期化
+      final songTitle = selectedSong['title'] ?? 'Unknown';
+      final fallbackPitches = _generateFallbackPitches();
+      
+      if (mounted) {
+        context.read<KaraokeSessionProvider>().initializeSession(songTitle, fallbackPitches);
+        setState(() => _analysisStatus = 'フォールバック処理完了');
+        _showSnackBar('基本的なピッチデータで初期化しました');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _analysisStatus = 'フォールバック処理失敗');
+        _showSnackBar('フォールバック処理に失敗しました: $e');
+      }
+    }
+  }
+
+  /// フォールバック用の基本的なピッチデータを生成
+  List<double> _generateFallbackPitches() {
+    // 一般的な楽曲の音階に基づいた基本的なピッチデータを生成
+    const basePitches = [
+      261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, // C4-C5
+    ];
+    
+    final pitches = <double>[];
+    for (int i = 0; i < 500; i++) {
+      final index = i % basePitches.length;
+      pitches.add(basePitches[index]);
+    }
+    
+    return pitches;
   }
 
   /// 音源再生
@@ -109,7 +147,34 @@ class _KaraokePageState extends State<KaraokePage> {
       _player.play();
     } catch (e) {
       _showSnackBar('音源の再生に失敗しました');
+      
+      // フォールバック処理: 代替音源での再生試行
+      _tryFallbackAudioPlayback();
     }
+  }
+
+  /// 代替音源での再生試行
+  Future<void> _tryFallbackAudioPlayback() async {
+    final fallbackAudioFiles = [
+      'assets/sounds/kiku.mp3',
+      'assets/sounds/sample.mp3',
+      'assets/sounds/test.mp3',
+    ];
+    
+    for (final audioFile in fallbackAudioFiles) {
+      try {
+        await _player.setAudioSource(AudioSource.asset(audioFile));
+        _player.play();
+        _showSnackBar('代替音源で再生しました');
+        return;
+      } catch (e) {
+        // 次の代替音源を試行
+        continue;
+      }
+    }
+    
+    // 全ての代替音源が失敗した場合
+    _showSnackBar('利用可能な音源がありません');
   }
 
   /// 録音開始

@@ -346,7 +346,26 @@ CIと同じチェックをローカルで実行するためのスクリプトを
    flutter test --coverage
 
    # 特定のテストファイルのみ実行
-   flutter test test/scoring_service_test.dart
+      flutter test test/scoring_service_test.dart
+   ```
+
+### コーディングガイドライン
+
+#### 変数名命名規則
+- **省略禁止**: 変数名は省略せず、意味が明確な完全な名前を使用
+- **可読性優先**: 長くても分かりやすい名前を付ける
+- **例**: 
+  - ✅ `fundamentalFrequencies` (基本周波数)
+  - ✅ `frequencyIndex` (周波数インデックス)
+  - ✅ `averageError` (平均誤差)
+  - ❌ `fundamentalFreqs`, `freqIndex`, `avgErr`
+
+#### 品質管理
+- **ゼロ警告原則**: `flutter analyze` で警告・エラーを残さない
+- **テスト完走**: `flutter test` で全テストが通ることを確認
+- **詳細**: `CONTRIBUTING.md` を参照
+
+## 機能概要
    ```
 
 6. **アプリの実行**

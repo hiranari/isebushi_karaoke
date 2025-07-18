@@ -139,16 +139,43 @@ class FeedbackService {
   static List<String> _generateTimingFeedback(TimingAnalysis analysis) {
     final feedback = <String>[];
     
-    // TODO: 実際のタイミング分析実装後に詳細化
+    // 実際のタイミング分析に基づく詳細フィードバック
     if (analysis.timingAccuracy < 0.7) {
       feedback.add('⏰ タイミングの改善が必要です');
       feedback.add('💡 伴奏をよく聞いて、リズムに合わせることを意識してください');
       feedback.add('🔧 メトロノームを使った練習をお勧めします');
+      
+      // 詳細な分析結果に基づく具体的アドバイス
+      if (analysis.earlyNotes > analysis.lateNotes) {
+        feedback.add('📊 早めに歌い始める傾向があります');
+        feedback.add('💡 伴奏のタイミングを意識して、少し待ってから歌い始めてみてください');
+      } else if (analysis.lateNotes > analysis.earlyNotes) {
+        feedback.add('📊 遅れ気味に歌い始める傾向があります');
+        feedback.add('💡 歌詞を事前に覚えて、より素早く反応できるようにしましょう');
+      }
+      
+      if (analysis.maxLatency.abs() > 0.5) {
+        feedback.add('⚠️ 大きなタイミングのずれが発生しています');
+        feedback.add('🔧 特定の部分で大幅に遅れているか早すぎる可能性があります');
+        feedback.add('💡 問題の箇所を特定し、その部分を重点的に練習してください');
+      }
+      
     } else if (analysis.timingAccuracy < 0.9) {
       feedback.add('⏰ タイミングは良好です');
       feedback.add('💡 より正確なタイミングを目指してみてください');
+      
+      if (analysis.averageLatency.abs() > 0.1) {
+        feedback.add('📊 平均的に${analysis.averageLatency > 0 ? "遅れ" : "早め"}の傾向があります');
+        feedback.add('💡 この傾向を意識して調整することで、さらに向上できます');
+      }
+      
     } else {
       feedback.add('⏰ 優れたタイミング感です！');
+      feedback.add('🌟 この正確なタイミングを維持し続けることが重要です');
+      
+      if (analysis.averageLatency.abs() < 0.05) {
+        feedback.add('🎯 極めて正確なタイミングです。プロレベルの精度をお持ちです');
+      }
     }
     
     return feedback;
