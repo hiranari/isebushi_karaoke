@@ -50,6 +50,14 @@ class KaraokeSessionProvider extends ChangeNotifier {
   }
 
   /// 録音開始
+  /// 
+  /// 歌唱セッションの録音を開始します。
+  /// 状態をrecordingに変更し、録音済みピッチをクリアします。
+  /// 
+  /// @precondition 状態がreadyである必要があります
+  /// @postcondition 状態がrecordingになり、isRecordingがtrueになります
+  /// @postcondition recordedPitchesがクリアされます
+  /// @ensures notifyListeners() が呼び出され、UI に変更が反映される
   void startRecording() {
     if (_state != KaraokeSessionState.ready) return;
     
@@ -60,6 +68,14 @@ class KaraokeSessionProvider extends ChangeNotifier {
   }
 
   /// 録音停止と分析実行
+  /// 
+  /// 録音を停止し、収集したピッチデータの分析を開始します。
+  /// 状態をanalyzingに変更し、非同期で分析を実行します。
+  /// 
+  /// @precondition 状態がrecordingである必要があります
+  /// @postcondition 状態がanalyzingになり、isRecordingがfalseになります
+  /// @postcondition 分析完了後、状態がcompletedまたはerrorになります
+  /// @ensures notifyListeners() が呼び出され、UI に変更が反映される
   void stopRecording() {
     if (_state != KaraokeSessionState.recording) return;
     
@@ -73,7 +89,12 @@ class KaraokeSessionProvider extends ChangeNotifier {
 
   /// リアルタイムピッチ更新
   /// 
-  /// [pitch] 検出されたピッチ値(Hz)
+  /// 録音中にリアルタイムで検出されたピッチ値を更新します。
+  /// この方法により、UIのピッチビジュアライザーがリアルタイムで反映されます。
+  /// 
+  /// @param pitch 検出されたピッチ値(Hz)。null の場合は無音を表す
+  /// @ensures notifyListeners() が呼び出され、UI に変更が反映される
+  /// @ensures 録音中の場合はピッチがrecordedPitchesに記録される
   void updateCurrentPitch(double? pitch) {
     _currentPitch = pitch;
     
