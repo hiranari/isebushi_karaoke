@@ -19,7 +19,7 @@ void main() {
     test('KaraokeSessionProvider should handle session initialization', () {
       // Arrange
       final provider = KaraokeSessionProvider();
-      final testPitches = [440.0, 493.88, 523.25];
+      const testPitches = [440.0, 493.88, 523.25];
       
       // Act
       provider.initializeSession('Test Song', testPitches);
@@ -32,8 +32,8 @@ void main() {
 
     test('ScoringService integration works correctly', () {
       // Arrange
-      final referencePitches = [440.0, 493.88, 523.25];
-      final recordedPitches = [440.0, 493.88, 523.25];
+      const referencePitches = [440.0, 493.88, 523.25];
+      const recordedPitches = [440.0, 493.88, 523.25];
       
       // Act
       final result = ScoringService.calculateComprehensiveScore(
@@ -50,8 +50,8 @@ void main() {
 
     test('FeedbackService integration works correctly', () {
       // Arrange
-      final referencePitches = [440.0, 493.88, 523.25];
-      final recordedPitches = [440.0, 493.88, 523.25];
+      const referencePitches = [440.0, 493.88, 523.25];
+      const recordedPitches = [440.0, 493.88, 523.25];
       
       final result = ScoringService.calculateComprehensiveScore(
         referencePitches: referencePitches,
@@ -76,8 +76,8 @@ void main() {
       expect(provider.scoreDisplayMode, ScoreDisplayMode.hidden);
       
       // Mock having a result
-      final referencePitches = [440.0];
-      final recordedPitches = [440.0];
+      const referencePitches = [440.0];
+      const recordedPitches = [440.0];
       ScoringService.calculateComprehensiveScore(
         referencePitches: referencePitches,
         recordedPitches: recordedPitches,

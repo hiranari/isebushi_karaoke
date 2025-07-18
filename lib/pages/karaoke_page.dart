@@ -155,7 +155,7 @@ class _KaraokePageState extends State<KaraokePage> {
 
   /// 代替音源での再生試行
   Future<void> _tryFallbackAudioPlayback() async {
-    final fallbackAudioFiles = [
+    const fallbackAudioFiles = [
       'assets/sounds/kiku.mp3',
       'assets/sounds/sample.mp3',
       'assets/sounds/test.mp3',
