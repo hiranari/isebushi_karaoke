@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../models/song_result.dart';
+import '../utils/debug_logger.dart';
 import '../services/scoring_service.dart';
 import '../services/feedback_service.dart';
 
@@ -72,7 +73,7 @@ class SongResultProvider extends ChangeNotifier {
       _displayState = ResultDisplayState.totalScore;
       
     } catch (e) {
-      debugPrint('歌唱結果の計算中にエラーが発生しました: $e');
+      DebugLogger.error('歌唱結果の計算中にエラーが発生しました', e);
       rethrow;
     } finally {
       _setProcessing(false, '');

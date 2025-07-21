@@ -15,6 +15,7 @@ import '../providers/karaoke_session_provider.dart';
 import '../widgets/progressive_score_display.dart';
 import '../widgets/realtime_pitch_visualizer.dart';
 import '../utils/singer_encoder.dart';
+import '../utils/debug_logger.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 
@@ -101,6 +102,7 @@ class _KaraokePageState extends State<KaraokePage> {
         pitches = analysisResult.pitches;
         await CacheService.saveToCache(audioFile, analysisResult);
         setState(() => _analysisStatus = '解析完了・キャッシュ保存済み');
+        DebugLogger.success('ピッチデータの解析が完了しました');
         _showSnackBar('ピッチデータの解析が完了しました');
       }
 
@@ -173,54 +175,27 @@ class _KaraokePageState extends State<KaraokePage> {
       // 再生を開始
       await _player.play();
       
-      debugPrint('音源再生開始完了');
+      DebugLogger.success('音源再生開始完了');
       _showSnackBar('音源再生を開始しました');
       
     } catch (e) {
-      debugPrint('音源再生エラー: $e');
-      _showSnackBar('音源の再生に失敗しました: ${e.toString()}');
+      DebugLogger.error('音源再生に失敗しました', e);
+      _showSnackBar('音源の再生に失敗しました。前の画面に戻ります。');
       
-      // フォールバック処理: 代替音源での再生試行
-      await _tryFallbackAudioPlayback();
+      // フォールバック処理: 前の画面に戻る
+      await _returnToPreviousScreen();
     }
   }
 
-  /// 代替音源での再生試行
-  Future<void> _tryFallbackAudioPlayback() async {
-    final fallbackAudioFiles = [
-      'assets/sounds/kiku.mp3',
-      'assets/sounds/sample.mp3',
-      'assets/sounds/test.mp3',
-    ];
-    
-    debugPrint('代替音源での再生を試行します');
-    
-    for (final audioFile in fallbackAudioFiles) {
-      try {
-        debugPrint('代替音源を試行: $audioFile');
-        
-        // 現在の再生を停止
-        await _player.stop();
-        
-        // オーディオソースを設定
-        await _player.setAudioSource(AudioSource.asset(audioFile));
-        
-        // 再生を開始
-        await _player.play();
-        
-        debugPrint('代替音源での再生成功: $audioFile');
-        _showSnackBar('代替音源で再生しました: $audioFile');
-        return;
-      } catch (e) {
-        debugPrint('代替音源再生失敗: $audioFile - $e');
-        // 次の代替音源を試行
-        continue;
+  /// 前の画面に戻る
+  Future<void> _returnToPreviousScreen() async {
+    try {
+      if (mounted) {
+        Navigator.of(context).pop();
       }
+    } catch (e) {
+      DebugLogger.error('画面遷移に失敗しました', e);
     }
-    
-    // 全ての代替音源が失敗した場合
-    debugPrint('全ての代替音源が失敗しました');
-    _showSnackBar('利用可能な音源がありません');
   }
 
   /// 録音開始
@@ -266,6 +241,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
+      DebugLogger.error('録音の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の開始に失敗しました: ${e.toString()}');
       }
@@ -282,6 +258,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // 定期的にピッチを更新するタイマーを使用
       _setupPitchDetectionTimer();
     } catch (e) {
+      DebugLogger.error('リアルタイムピッチ検出の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('リアルタイムピッチ検出の開始に失敗しました: ${e.toString()}');
       }
@@ -392,6 +369,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
+      DebugLogger.error('録音の停止に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の停止に失敗しました: ${e.toString()}');
       }
@@ -428,9 +406,9 @@ class _KaraokePageState extends State<KaraokePage> {
       }
       
     } catch (e) {
+      DebugLogger.error('録音音声の分析に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音音声の分析に失敗しました: ${e.toString()}');
-        debugPrint('録音ピッチ抽出エラー: $e');
         
         // フォールバック処理：シミュレーションデータを使用
         final sessionProvider = context.read<KaraokeSessionProvider>();

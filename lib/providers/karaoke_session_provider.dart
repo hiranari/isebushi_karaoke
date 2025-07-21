@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/song_result.dart';
 import '../services/scoring_service.dart';
 import '../services/feedback_service.dart';
+import '../utils/debug_logger.dart';
 
 /// Phase 3: 歌唱セッション状態管理
 /// 
@@ -213,7 +214,7 @@ class KaraokeSessionProvider extends ChangeNotifier {
       _scoreDisplayMode = ScoreDisplayMode.totalScore;
       
     } catch (e) {
-      debugPrint('分析エラー: $e');
+      DebugLogger.error('歌唱分析中にエラーが発生しました', e);
       setError('分析中にエラーが発生しました: $e');
     }
     
