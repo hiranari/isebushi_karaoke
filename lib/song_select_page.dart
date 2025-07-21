@@ -29,8 +29,22 @@ class _SongSelectPageState extends State<SongSelectPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('曲を選択')),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        
+        final navigator = Navigator.of(context);
+        
+        // 最初の画面でのアプリ終了確認
+        final shouldExit = await _showAppExitConfirmation();
+        if (shouldExit) {
+          // システムに戻る（アプリ終了）
+          navigator.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('曲を選択')),
       body: songs.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
@@ -50,7 +64,7 @@ class _SongSelectPageState extends State<SongSelectPage> {
                       ? Colors.grey[100] // 偶数行（薄いグレー）
                       : Colors.white, // 奇数行（白）
                   onTap: () {
-                    Navigator.pushReplacementNamed(
+                    Navigator.pushNamed(
                       context,
                       '/karaoke',
                       arguments: song,
@@ -59,6 +73,35 @@ class _SongSelectPageState extends State<SongSelectPage> {
                 );
               },
             ),
+      ),
     );
+  }
+
+  /// アプリ終了確認ダイアログ
+  Future<bool> _showAppExitConfirmation() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('アプリを終了しますか？'),
+          content: const Text('伊勢節カラオケアプリを終了してもよろしいですか？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('キャンセル'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('終了'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
   }
 }

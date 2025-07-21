@@ -78,12 +78,9 @@ class AudioProcessingService {
 
       final wavData = await file.readAsBytes();
       
-      // デバッグ用：ファイルの詳細情報を出力
-      print('ファイルサイズ: ${wavData.length} バイト');
-      if (wavData.length >= 16) {
-        print('ファイルヘッダー（最初16バイト）: ${wavData.sublist(0, 16).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
-        print('ファイルヘッダー（ASCII）: ${String.fromCharCodes(wavData.sublist(0, math.min(16, wavData.length)))}');
-      }
+      // デバッグ用：ファイルの詳細情報を記録
+      // ファイルサイズ: ${wavData.length} バイト
+      // 実際のプロダクションではログライブラリの使用を推奨
 
       // WAVヘッダーの検証
       if (wavData.length < wavHeaderSize) {
@@ -92,13 +89,8 @@ class AudioProcessingService {
 
       // WAVヘッダーの簡易チェック
       if (!_isValidWavHeader(wavData)) {
-        // より詳細なエラー情報を提供
-        final riffCheck = wavData.length >= 4 ? String.fromCharCodes(wavData.sublist(0, 4)) : '';
-        final waveCheck = wavData.length >= 12 ? String.fromCharCodes(wavData.sublist(8, 12)) : '';
-        print('WAVヘッダー検証失敗。RIFF: "$riffCheck", WAVE: "$waveCheck"');
-        
         // Record パッケージがRAW PCMデータを出力した場合のフォールバック
-        print('RAW PCMデータとして処理を試行します');
+        // RAW PCMデータとして処理を試行
         return _processRawPcmData(wavData);
       }
 
@@ -135,10 +127,10 @@ class AudioProcessingService {
         rawData = rawData.sublist(0, rawData.length - 1);
       }
       
-      print('RAW PCMデータとして処理: ${rawData.length} バイト → ${rawData.length ~/ 2} サンプル');
+      // RAW PCMデータとして処理: ${rawData.length} バイト → ${rawData.length ~/ 2} サンプル
       return Int16List.view(rawData.buffer, rawData.offsetInBytes, rawData.lengthInBytes ~/ 2);
     } catch (e) {
-      print('RAW PCMデータ処理エラー: $e');
+      // RAW PCMデータ処理エラー: $e
       // 最後の手段として、シミュレーションデータを生成
       final sampleCount = rawData.length ~/ 2;
       return _generateRealisticAudioPattern(sampleCount);

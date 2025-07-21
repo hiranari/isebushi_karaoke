@@ -456,12 +456,61 @@ class _KaraokePageState extends State<KaraokePage> {
     }
   }
 
+  /// 録音中の終了確認ダイアログ
+  Future<bool> _showExitConfirmation() async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('録音中です'),
+          content: const Text('録音を停止して画面を戻りますか？\n録音データは失われます。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('キャンセル'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('戻る'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     
-    return Scaffold(
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        
+        final sessionProvider = context.read<KaraokeSessionProvider>();
+        final navigator = Navigator.of(context);
+        
+        // 録音中の場合は確認ダイアログを表示
+        if (sessionProvider.isRecording) {
+          final shouldExit = await _showExitConfirmation();
+          if (shouldExit && mounted) {
+            navigator.pop();
+          }
+        } else {
+          // 録音中でない場合は直接戻る
+          if (mounted) {
+            navigator.pop();
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -572,6 +621,7 @@ class _KaraokePageState extends State<KaraokePage> {
           );
         },
       ),
+    ),
     );
   }
 
