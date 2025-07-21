@@ -1,8 +1,8 @@
-/// DebugLoggerの使用例とテストケース
-/// 
-/// このファイルは実際のエラーログがどのように表示されるかを
-/// 確認するためのサンプルです。
-import '../lib/utils/debug_logger.dart';
+// ignore_for_file: avoid_print
+
+// DebugLoggerの使用例とテストケース
+
+import 'package:isebushi_karaoke/utils/debug_logger.dart';
 
 void main() {
   // エラーログのサンプル
@@ -27,7 +27,7 @@ void main() {
   });
 
   // 条件付きログのサンプル
-  final debugEnabled = true;
+  const debugEnabled = true;
   DebugLogger.conditional(debugEnabled, 'デバッグモードが有効です');
 
   print('DebugLoggerのサンプル実行完了: $result');
