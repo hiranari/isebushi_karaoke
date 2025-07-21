@@ -174,5 +174,14 @@
       "name": "code-block-vars",
       "pattern": "/(```[\\s\\S]*?```|`[^`]*`|❌|✅)/g"
     }
-  ]
+  ],
+
+  // Gradle関連のエラーを無視
+  "java.compile.nullAnalysis.mode": "disabled",
+  "java.errors.incompleteClasspath.severity": "ignore",
+  "gradle.nestedProjects": true,
+  "files.exclude": {
+    "**/.gradle": true
+  },
+  "java.configuration.updateBuildConfiguration": "interactive"
 }
