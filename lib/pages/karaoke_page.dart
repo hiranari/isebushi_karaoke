@@ -14,6 +14,7 @@ import '../services/cache_service.dart';
 import '../providers/karaoke_session_provider.dart';
 import '../widgets/progressive_score_display.dart';
 import '../widgets/realtime_pitch_visualizer.dart';
+import '../utils/singer_encoder.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 
@@ -30,6 +31,9 @@ class _KaraokePageState extends State<KaraokePage> {
   final AudioPlayer _player = AudioPlayer();
   final AudioRecorder _recorder = AudioRecorder();
   StreamSubscription<Uint8List>? _pcmStreamSub;
+  
+  // 再生状態の管理
+  bool _isPlaying = false;
 
   // Phase 1サービス（既存機能）
   final PitchDetectionService _pitchDetectionService = PitchDetectionService();
@@ -41,6 +45,16 @@ class _KaraokePageState extends State<KaraokePage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    
+    // AudioPlayerの状態変化を監視
+    _player.playerStateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = state.playing;
+        });
+      }
+    });
+    
     final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     if (selectedSong != null) {
       _loadReferencePitches(selectedSong);
@@ -50,6 +64,7 @@ class _KaraokePageState extends State<KaraokePage> {
   @override
   void dispose() {
     _pcmStreamSub?.cancel();
+    _player.stop();
     _player.dispose();
     super.dispose();
   }
@@ -146,13 +161,27 @@ class _KaraokePageState extends State<KaraokePage> {
     try {
       final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
       final audioFile = selectedSong?['audioFile'] ?? 'assets/sounds/kiku.mp3';
+      
+      debugPrint('音源再生を開始: $audioFile');
+      
+      // 現在の再生を停止
+      await _player.stop();
+      
+      // オーディオソースを設定
       await _player.setAudioSource(AudioSource.asset(audioFile));
-      _player.play();
+      
+      // 再生を開始
+      await _player.play();
+      
+      debugPrint('音源再生開始完了');
+      _showSnackBar('音源再生を開始しました');
+      
     } catch (e) {
+      debugPrint('音源再生エラー: $e');
       _showSnackBar('音源の再生に失敗しました: ${e.toString()}');
       
       // フォールバック処理: 代替音源での再生試行
-      _tryFallbackAudioPlayback();
+      await _tryFallbackAudioPlayback();
     }
   }
 
@@ -164,19 +193,33 @@ class _KaraokePageState extends State<KaraokePage> {
       'assets/sounds/test.mp3',
     ];
     
+    debugPrint('代替音源での再生を試行します');
+    
     for (final audioFile in fallbackAudioFiles) {
       try {
+        debugPrint('代替音源を試行: $audioFile');
+        
+        // 現在の再生を停止
+        await _player.stop();
+        
+        // オーディオソースを設定
         await _player.setAudioSource(AudioSource.asset(audioFile));
-        _player.play();
-        _showSnackBar('代替音源で再生しました');
+        
+        // 再生を開始
+        await _player.play();
+        
+        debugPrint('代替音源での再生成功: $audioFile');
+        _showSnackBar('代替音源で再生しました: $audioFile');
         return;
       } catch (e) {
+        debugPrint('代替音源再生失敗: $audioFile - $e');
         // 次の代替音源を試行
         continue;
       }
     }
     
     // 全ての代替音源が失敗した場合
+    debugPrint('全ての代替音源が失敗しました');
     _showSnackBar('利用可能な音源がありません');
   }
 
@@ -419,7 +462,20 @@ class _KaraokePageState extends State<KaraokePage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text(selectedSong?['title'] ?? 'カラオケ'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              selectedSong?['title'] ?? 'カラオケ',
+              style: const TextStyle(fontSize: 18),
+            ),
+            if (selectedSong?['singer'] != null)
+              Text(
+                '歌手: ${SingerEncoder.decode(selectedSong!['singer']!)}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -471,9 +527,13 @@ class _KaraokePageState extends State<KaraokePage> {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     ElevatedButton.icon(
-                      onPressed: _playAudio,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('音源再生'),
+                      onPressed: _isPlaying ? () => _player.stop() : _playAudio,
+                      icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
+                      label: Text(_isPlaying ? '停止' : '音源再生'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isPlaying ? Colors.orange : Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
                     ),
                     if (!kIsWeb)
                       ElevatedButton.icon(
@@ -517,6 +577,8 @@ class _KaraokePageState extends State<KaraokePage> {
 
   /// セッション状態表示カード
   Widget _buildSessionStatusCard(KaraokeSessionProvider sessionProvider) {
+    final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+    
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -528,6 +590,9 @@ class _KaraokePageState extends State<KaraokePage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
+            _buildStatusRow('楽曲', selectedSong?['title'] ?? '-'),
+            if (selectedSong?['singer'] != null)
+              _buildStatusRow('歌手', SingerEncoder.decode(selectedSong!['singer']!)),
             _buildStatusRow('状態', _getStateText(sessionProvider.state)),
             _buildStatusRow('現在のピッチ', 
                 sessionProvider.currentPitch?.toStringAsFixed(2) ?? '-'),

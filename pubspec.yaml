@@ -1,5 +1,5 @@
 name: isebushi_karaoke
-description: "A new Flutter project."
+description: "伊勢節カラオケアプリ - 伊勢節を歌って採点できるカラオケアプリです。"
 
 environment:
   sdk: '^3.8.0'

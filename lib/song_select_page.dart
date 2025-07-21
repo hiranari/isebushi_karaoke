@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'utils/singer_encoder.dart';
 
 class SongSelectPage extends StatefulWidget {
   const SongSelectPage({super.key});
@@ -35,8 +36,16 @@ class _SongSelectPageState extends State<SongSelectPage> {
           : ListView.builder(
               itemCount: songs.length,
               itemBuilder: (context, index) {
+                final song = songs[index];
+                final displaySinger = song['singer'] != null 
+                    ? SingerEncoder.decode(song['singer']!) 
+                    : null;
                 return ListTile(
-                  title: Text(songs[index]['title'] ?? ''),
+                  title: Text(song['title'] ?? ''),
+                  subtitle: displaySinger != null 
+                      ? Text('歌手: $displaySinger', 
+                             style: TextStyle(color: Colors.grey[600]))
+                      : null,
                   tileColor: index % 2 == 0
                       ? Colors.grey[100] // 偶数行（薄いグレー）
                       : Colors.white, // 奇数行（白）
@@ -44,7 +53,7 @@ class _SongSelectPageState extends State<SongSelectPage> {
                     Navigator.pushReplacementNamed(
                       context,
                       '/karaoke',
-                      arguments: songs[index],
+                      arguments: song,
                     );
                   },
                 );
