@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import '../models/pitch_comparison_result.dart';
+import '../../domain/models/pitch_comparison_result.dart';
 
 /// 高精度ピッチ比較システム（Phase 2）
 /// 基準ピッチと歌唱ピッチの詳細比較を行うサービスクラス

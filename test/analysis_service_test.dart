@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/analysis_service.dart';
-import 'package:isebushi_karaoke/models/comprehensive_score.dart';
+import 'package:isebushi_karaoke/infrastructure/services/analysis_service.dart';
+import 'package:isebushi_karaoke/domain/models/comprehensive_score.dart';
 
 /// AnalysisServiceの単体テスト
 /// 
@@ -47,8 +47,8 @@ void main() {
 
         expect(analysis, isNotNull);
         // 空のデータでも適切に処理される
-        expect(analysis.pitchAnalysis, isA<List>());
-        expect(analysis.timingAnalysis, isA<List>());
+        expect(analysis.pitchAnalysis, isA<Map<String, dynamic>>());
+        expect(analysis.timingAnalysis, isA<Map<String, dynamic>>());
       });
 
       test('異なる長さのピッチデータでの分析', () {
@@ -63,7 +63,7 @@ void main() {
 
         expect(analysis, isNotNull);
         // 長さが異なるデータでも適切に処理される
-        expect(analysis.pitchAnalysis, isA<List>());
+        expect(analysis.pitchAnalysis, isA<Map<String, dynamic>>());
       });
     });
 
@@ -133,7 +133,7 @@ void main() {
           score: testScore,
         );
 
-        expect(analysis.timingAnalysis, isA<List>());
+        expect(analysis.timingAnalysis, isA<Map<String, dynamic>>());
         // 短いデータでも適切に処理される
       });
     });

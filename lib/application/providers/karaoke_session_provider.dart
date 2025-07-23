@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
-import '../models/song_result.dart';
-import '../services/scoring_service.dart';
-import '../services/feedback_service.dart';
-import '../utils/debug_logger.dart';
+import '../../domain/models/song_result.dart';
+import '../../infrastructure/services/scoring_service.dart';
+import '../../infrastructure/services/feedback_service.dart';
+import '../../core/utils/debug_logger.dart';
 
 /// Phase 3: 歌唱セッション状態管理
 /// 

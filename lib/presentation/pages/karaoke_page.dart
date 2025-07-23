@@ -9,15 +9,15 @@ import 'package:record/record.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../services/pitch_detection_service.dart';
-import '../services/cache_service.dart';
-import '../providers/karaoke_session_provider.dart';
-import '../widgets/progressive_score_display.dart';
-import '../widgets/realtime_pitch_visualizer.dart';
-import '../utils/singer_encoder.dart';
-import '../utils/debug_logger.dart';
-import '../utils/pitch_debug_helper.dart';
-import '../models/audio_analysis_result.dart';
+import '../../infrastructure/services/pitch_detection_service.dart';
+import '../../infrastructure/services/cache_service.dart';
+import '../../application/providers/karaoke_session_provider.dart';
+import '../widgets/karaoke/progressive_score_display.dart';
+import '../widgets/karaoke/realtime_pitch_visualizer.dart';
+import '../../core/utils/singer_encoder.dart';
+import '../../core/utils/debug_logger.dart';
+import '../../core/utils/pitch_debug_helper.dart';
+import '../../domain/models/audio_analysis_result.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 

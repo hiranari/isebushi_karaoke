@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/song_result.dart';
+import '../../../domain/models/song_result.dart';
 
 /// 改善提案表示ウィジェット
 /// Phase 3: プログレッシブディスクロージャーの第3段階 - 具体的改善提案

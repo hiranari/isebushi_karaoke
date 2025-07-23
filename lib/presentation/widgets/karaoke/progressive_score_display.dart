@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/song_result.dart';
-import '../providers/karaoke_session_provider.dart';
+import '../../../domain/models/song_result.dart';
+import '../../../application/providers/karaoke_session_provider.dart';
 
 /// Phase 3: プログレッシブスコア表示ウィジェット
 /// 

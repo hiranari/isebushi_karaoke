@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/widgets/realtime_pitch_visualizer.dart';
+import 'package:isebushi_karaoke/presentation/widgets/karaoke/realtime_pitch_visualizer.dart';
 
 /// RealtimePitchVisualizerのウィジェットテスト
 /// 
@@ -9,7 +9,7 @@ void main() {
   group('RealtimePitchVisualizer Widget Tests', () {
     testWidgets('基本的なレンダリング', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 440.0,
@@ -34,7 +34,7 @@ void main() {
 
     testWidgets('録音状態に応じた表示', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 440.0,
@@ -51,7 +51,7 @@ void main() {
 
     testWidgets('nullピッチでのレンダリング', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: null, // ピッチなし
@@ -68,7 +68,7 @@ void main() {
 
     testWidgets('空のデータでのレンダリング', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: null,
@@ -85,7 +85,7 @@ void main() {
 
     testWidgets('タップジェスチャーが動作する', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 440.0,
@@ -107,7 +107,7 @@ void main() {
 
     testWidgets('ダブルタップジェスチャーが動作する', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 440.0,
@@ -136,7 +136,7 @@ void main() {
 
     testWidgets('アニメーション関連のテスト', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 440.0,
@@ -153,7 +153,7 @@ void main() {
 
       // ピッチ変更をシミュレート
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 493.88, // ピッチ変更
@@ -171,7 +171,7 @@ void main() {
 
     testWidgets('極端なピッチ値でのレンダリング', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RealtimePitchVisualizer(
               currentPitch: 2000.0, // 非常に高いピッチ

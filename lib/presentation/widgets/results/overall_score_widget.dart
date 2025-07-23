@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/song_result.dart';
-import '../services/scoring_service.dart';
+import '../../../domain/models/song_result.dart';
+import '../../../infrastructure/services/scoring_service.dart';
 
 /// 総合スコア表示ウィジェット
 /// Phase 3: 歌唱直後の総合スコア表示（プログレッシブディスクロージャーの第1段階）

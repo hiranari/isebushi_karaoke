@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/providers/song_result_provider.dart';
+import 'package:isebushi_karaoke/application/providers/song_result_provider.dart';
 
 /// SongResultProviderの単体テスト
 /// 

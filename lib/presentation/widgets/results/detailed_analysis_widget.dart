@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/song_result.dart';
+import '../../../domain/models/song_result.dart';
 
 /// 詳細分析表示ウィジェット
 /// Phase 3: プログレッシブディスクロージャーの第2段階 - 各スコア詳細と音程グラフ

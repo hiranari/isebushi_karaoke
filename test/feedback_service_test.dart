@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/feedback_service.dart';
-import 'package:isebushi_karaoke/models/song_result.dart';
+import 'package:isebushi_karaoke/infrastructure/services/feedback_service.dart';
+import 'package:isebushi_karaoke/domain/models/song_result.dart';
 
 /// FeedbackServiceの単体テスト
 /// 

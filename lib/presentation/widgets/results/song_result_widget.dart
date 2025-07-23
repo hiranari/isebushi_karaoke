@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/song_result.dart';
-import '../providers/song_result_provider.dart';
+import '../../../domain/models/song_result.dart';
+import '../../../application/providers/song_result_provider.dart';
 
 /// Phase 3: 段階的な結果表示を担当するウィジェット
 /// 

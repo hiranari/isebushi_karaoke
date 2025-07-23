@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
-import '../models/audio_analysis_result.dart';
+import '../../domain/models/audio_analysis_result.dart';
 import 'audio_processing_service.dart';
 
 /// ピッチ検出を担当するサービスクラス
@@ -45,13 +45,15 @@ class PitchDetectionService {
       // PCMデータを取得
       Int16List pcmData;
       if (isAsset) {
-        pcmData = await AudioProcessingService.extractPcmFromWav(sourcePath);
+        final audioData = await AudioProcessingService.loadWavFromAsset(sourcePath);
+        pcmData = AudioProcessingService.intListToInt16List(audioData.samples);
       } else {
-        pcmData = await AudioProcessingService.extractPcmFromWavFile(sourcePath);
+        final audioData = await AudioProcessingService.loadWavFromFile(sourcePath);
+        pcmData = AudioProcessingService.intListToInt16List(audioData.samples);
       }
 
       // PCMデータを正規化
-      final normalizedPcm = AudioProcessingService.normalizePcmData(pcmData);
+      final normalizedPcm = AudioProcessingService.normalize(pcmData);
 
       // Int16ListをUint8Listに変換
       final uint8Pcm = Uint8List.fromList(normalizedPcm.expand((sample) => [

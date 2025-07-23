@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/providers/karaoke_session_provider.dart';
+import 'package:isebushi_karaoke/application/providers/karaoke_session_provider.dart';
 
 /// Phase 3: KaraokeSessionProviderのテスト
 /// 

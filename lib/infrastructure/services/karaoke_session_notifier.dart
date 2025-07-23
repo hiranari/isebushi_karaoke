@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../models/song_result.dart';
+import '../../domain/models/song_result.dart';
 import '../services/scoring_service.dart';
 import '../services/feedback_service.dart';
 

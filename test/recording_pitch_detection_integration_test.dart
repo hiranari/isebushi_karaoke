@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:isebushi_karaoke/providers/karaoke_session_provider.dart';
-import 'package:isebushi_karaoke/widgets/realtime_pitch_visualizer.dart';
+import 'package:isebushi_karaoke/application/providers/karaoke_session_provider.dart';
+import 'package:isebushi_karaoke/presentation/widgets/karaoke/realtime_pitch_visualizer.dart';
 
 /// 録音開始後のピッチ表示とUI状態遷移のテスト
 /// 

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/providers/karaoke_session_provider.dart';
-import 'package:isebushi_karaoke/services/scoring_service.dart';
-import 'package:isebushi_karaoke/services/feedback_service.dart';
+import 'package:isebushi_karaoke/application/providers/karaoke_session_provider.dart';
+import 'package:isebushi_karaoke/infrastructure/services/scoring_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/feedback_service.dart';
 
 void main() {
   group('Integration Test - Conflict Resolution Verification', () {

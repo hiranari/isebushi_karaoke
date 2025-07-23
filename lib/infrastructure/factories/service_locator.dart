@@ -1,13 +1,8 @@
-import '../../domain/interfaces/i_audio_processing_service.dart';
-import '../../domain/interfaces/i_pitch_detection_service.dart';
-import '../../domain/interfaces/i_scoring_service.dart';
-import '../../domain/interfaces/i_analysis_service.dart';
-import '../../domain/interfaces/i_feedback_service.dart';
-import '../../domain/interfaces/i_cache_service.dart';
-
-import '../services/audio_processing_service.dart';
+// 注意: AudioProcessingServiceは静的メソッドのため、Service Locatorに登録せずに直接使用
+// import '../services/audio_processing_service.dart';
 import '../services/pitch_detection_service.dart';
-import '../services/scoring_service.dart';
+// ScoringServiceも静的メソッドのため、直接使用
+// import '../services/scoring_service.dart';
 import '../services/analysis_service.dart';
 import '../services/feedback_service.dart';
 import '../services/cache_service.dart';
@@ -27,13 +22,13 @@ class ServiceLocator {
   /// 
   /// This should be called during app initialization
   void initialize() {
-    // Register service implementations
-    registerService<IAudioProcessingService>(AudioProcessingService());
-    registerService<IPitchDetectionService>(PitchDetectionService());
-    registerService<IScoringService>(ScoringService());
-    registerService<IAnalysisService>(AnalysisService());
-    registerService<IFeedbackService>(FeedbackService());
-    registerService<ICacheService>(CacheService());
+    // Register service instances
+    // Note: 静的メソッドのみのサービス（AudioProcessingService, ScoringService等）は登録不要
+    
+    registerService<PitchDetectionService>(PitchDetectionService());
+    registerService<AnalysisService>(AnalysisService());
+    registerService<FeedbackService>(FeedbackService());
+    registerService<CacheService>(CacheService());
   }
 
   /// Register a service instance

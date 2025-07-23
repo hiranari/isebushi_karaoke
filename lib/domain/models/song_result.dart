@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 /// Phase 3: 歌唱結果の包括的データモデル
 /// 
 /// 単一責任の原則に従い、歌唱結果の全ての情報を管理します。
@@ -13,7 +15,7 @@ class SongResult {
   final StabilityAnalysis stabilityAnalysis;
   final List<String> feedback;
 
-  const SongResult({
+  SongResult({
     required this.songTitle,
     required this.timestamp,
     required this.totalScore,
@@ -78,15 +80,17 @@ class ScoreBreakdown {
   final double pitchAccuracyWeight;
   final double stabilityWeight;
   final double timingWeight;
+  final DateTime calculatedAt;
 
-  const ScoreBreakdown({
+  ScoreBreakdown({
     required this.pitchAccuracyScore,
     required this.stabilityScore,
     required this.timingScore,
     this.pitchAccuracyWeight = 0.7,
     this.stabilityWeight = 0.2,
     this.timingWeight = 0.1,
-  });
+    DateTime? calculatedAt,
+  }) : calculatedAt = calculatedAt ?? DateTime.now();
 
   /// 重み付き総合スコアを計算
   double get totalScore {
@@ -103,6 +107,7 @@ class ScoreBreakdown {
       'pitchAccuracyWeight': pitchAccuracyWeight,
       'stabilityWeight': stabilityWeight,
       'timingWeight': timingWeight,
+      'calculatedAt': calculatedAt.toIso8601String(),
     };
   }
 
@@ -114,6 +119,9 @@ class ScoreBreakdown {
       pitchAccuracyWeight: json['pitchAccuracyWeight']?.toDouble() ?? 0.7,
       stabilityWeight: json['stabilityWeight']?.toDouble() ?? 0.2,
       timingWeight: json['timingWeight']?.toDouble() ?? 0.1,
+      calculatedAt: json['calculatedAt'] != null 
+          ? DateTime.parse(json['calculatedAt'])
+          : DateTime.now(),
     );
   }
 
@@ -121,6 +129,9 @@ class ScoreBreakdown {
   double get pitchAccuracy => pitchAccuracyScore;
   double get stability => stabilityScore;
   double get timing => timingScore;
+  
+  /// スコアのパーセンテージ表示
+  String get totalScorePercentage => '${(totalScore * 100).toStringAsFixed(1)}%';
 }
 
 /// ピッチ精度分析結果
@@ -250,6 +261,27 @@ class TimingAnalysis {
       latencyHistory: List<double>.from(json['latencyHistory']),
     );
   }
+
+  /// ScoringServiceで期待されるプロパティ
+  double get overallTimingScore => timingAccuracy;
+  double get averageDelay => averageLatency;
+  bool get isOnTime => timingAccuracy > 0.8;
+  List<TimingDeviation> get deviations => _generateDeviations();
+
+  List<TimingDeviation> _generateDeviations() {
+    final deviations = <TimingDeviation>[];
+    for (int i = 0; i < latencyHistory.length; i++) {
+      final deviation = latencyHistory[i];
+      if (deviation.abs() > 0.1) { // 100ms以上のずれを記録
+        deviations.add(TimingDeviation(
+          timestamp: i * 0.1, // 100msごと
+          deviation: deviation.abs(),
+          isEarly: deviation < 0,
+        ));
+      }
+    }
+    return deviations;
+  }
 }
 
 /// 安定性分析結果
@@ -292,5 +324,94 @@ class StabilityAnalysis {
       unstableNotes: json['unstableNotes'],
       variationHistory: List<double>.from(json['variationHistory']),
     );
+  }
+
+  /// 安定性判定のプロパティ
+  bool get isStable => averageVariation < 15.0; // 15セント以下で安定と判定
+  double get stabilityScore => math.max(0.0, (20.0 - averageVariation) / 20.0);
+  List<StabilitySegment> get segments => _generateSegments();
+
+  List<StabilitySegment> _generateSegments() {
+    final segments = <StabilitySegment>[];
+    const segmentDuration = 2.0; // 2秒のセグメント
+    
+    for (int i = 0; i < variationHistory.length; i += (44100 * segmentDuration).round()) {
+      final endIndex = math.min(i + (44100 * segmentDuration).round(), variationHistory.length);
+      final segmentData = variationHistory.sublist(i, endIndex);
+      final segmentVariation = segmentData.reduce((a, b) => a + b) / segmentData.length;
+      
+      segments.add(StabilitySegment(
+        startTime: i / 44100.0,
+        endTime: endIndex / 44100.0,
+        deviation: segmentVariation,
+        isStable: segmentVariation < 15.0,
+      ));
+    }
+    
+    return segments;
+  }
+}
+
+/// 安定性セグメント情報
+class StabilitySegment {
+  final double startTime;
+  final double endTime;
+  final double deviation;
+  final bool isStable;
+
+  const StabilitySegment({
+    required this.startTime,
+    required this.endTime,
+    required this.deviation,
+    required this.isStable,
+  });
+
+  factory StabilitySegment.fromJson(Map<String, dynamic> json) {
+    return StabilitySegment(
+      startTime: json['startTime'].toDouble(),
+      endTime: json['endTime'].toDouble(),
+      deviation: json['deviation'].toDouble(),
+      isStable: json['isStable'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'startTime': startTime,
+      'endTime': endTime,
+      'deviation': deviation,
+      'isStable': isStable,
+    };
+  }
+
+  double get duration => endTime - startTime;
+}
+
+/// タイミングずれ詳細情報
+class TimingDeviation {
+  final double timestamp;
+  final double deviation;
+  final bool isEarly;
+
+  const TimingDeviation({
+    required this.timestamp,
+    required this.deviation,
+    required this.isEarly,
+  });
+
+  factory TimingDeviation.fromJson(Map<String, dynamic> json) {
+    return TimingDeviation(
+      timestamp: json['timestamp'].toDouble(),
+      deviation: json['deviation'].toDouble(),
+      isEarly: json['isEarly'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'timestamp': timestamp,
+      'deviation': deviation,
+      'isEarly': isEarly,
+    };
   }
 }

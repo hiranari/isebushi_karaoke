@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/models/song_result.dart';
-import 'package:isebushi_karaoke/services/scoring_service.dart';
-import 'package:isebushi_karaoke/services/feedback_service.dart';
+import 'package:isebushi_karaoke/domain/models/song_result.dart';
+import 'package:isebushi_karaoke/infrastructure/services/scoring_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/feedback_service.dart';
 
 void main() {
   group('Phase 3 - Core Components Tests', () {
@@ -142,7 +142,7 @@ void main() {
 
       test('ScoreBreakdown totalScore calculation should use correct weights', () {
         // Arrange
-        const breakdown = ScoreBreakdown(
+        final breakdown = ScoreBreakdown(
           pitchAccuracyScore: 90.0,
           stabilityScore: 80.0,
           timingScore: 70.0,

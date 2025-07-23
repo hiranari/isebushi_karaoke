@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/scoring_service.dart';
-import 'package:isebushi_karaoke/models/comprehensive_score.dart';
+import 'package:isebushi_karaoke/infrastructure/services/scoring_service.dart';
+import 'package:isebushi_karaoke/domain/models/comprehensive_score.dart';
 
 void main() {
   group('ScoringService Tests', () {

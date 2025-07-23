@@ -15,13 +15,13 @@ class PitchDebugHelper {
     
     debugPrint('=== 純音生成デバッグ ===');
     debugPrint('周波数: ${frequency.toStringAsFixed(2)}Hz');
-    debugPrint('長さ: ${durationSec}秒');
+    debugPrint('長さ: $durationSec秒');
     debugPrint('サンプリングレート: ${sampleRate}Hz');
     debugPrint('サンプル数: $sampleCount');
     
     for (int i = 0; i < sampleCount; i++) {
       final time = i / sampleRate;
-      final amplitude = 0.5; // 50%の音量
+      const amplitude = 0.5; // 50%の音量
       final sample = amplitude * math.sin(2 * math.pi * frequency * time);
       final pcmSample = (sample * 32767).round().clamp(-32767, 32767);
       
@@ -132,7 +132,7 @@ class PitchDebugHelper {
   static String frequencyToNoteName(double frequency) {
     if (frequency <= 0) return 'Silent';
     
-    final a4 = 440.0;
+    const a4 = 440.0;
     final semitonesFromA4 = (12 * math.log(frequency / a4) / math.ln2).round();
     
     final noteNames = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];

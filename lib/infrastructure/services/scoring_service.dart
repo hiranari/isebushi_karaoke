@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import '../models/song_result.dart';
+import '../../domain/models/song_result.dart';
 
 /// Phase 3: 多角的スコアリングサービス
 /// 

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/audio_processing_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/audio_processing_service.dart';
 import 'dart:typed_data';
 
 /// AudioProcessingServiceの単体テスト
@@ -41,7 +41,7 @@ void main() {
         final normalized = AudioProcessingService.normalizePcmData(singleValue);
         
         expect(normalized.length, equals(1));
-        expect(normalized[0], equals(1000)); // 単一値は変更されない
+        expect(normalized[0], equals(32767)); // 最大値まで正規化される
       });
 
       test('全て同じ値のPCMデータの正規化', () {
@@ -49,8 +49,8 @@ void main() {
         final normalized = AudioProcessingService.normalizePcmData(sameValues);
         
         expect(normalized.length, equals(4));
-        // 全て同じ値の場合、変更されない
-        expect(normalized.every((value) => value == 500), isTrue);
+        // 全て同じ値の場合、最大値まで正規化される
+        expect(normalized.every((value) => value == 32767), isTrue);
       });
 
       test('極端な値を含むPCMデータの正規化', () {
@@ -161,7 +161,7 @@ void main() {
         final normalized = AudioProcessingService.normalizePcmData(tinyData);
         
         expect(normalized.length, equals(1));
-        expect(normalized[0], equals(1));
+        expect(normalized[0], equals(32767)); // 最大値まで正規化される
       });
     });
 

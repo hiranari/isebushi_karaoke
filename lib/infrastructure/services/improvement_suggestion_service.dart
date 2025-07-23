@@ -1,5 +1,5 @@
-import '../models/comprehensive_score.dart';
-import '../models/improvement_suggestion.dart';
+import '../../domain/models/comprehensive_score.dart';
+import '../../domain/models/improvement_suggestion.dart';
 
 /// 改善提案生成を担当するサービスクラス
 /// Phase 3: 各スコアごとに動的に改善提案を生成

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import '../models/audio_analysis_result.dart';
+import '../../domain/models/audio_analysis_result.dart';
 
 /// ピッチ検出結果のキャッシュを管理するサービスクラス
 class CacheService {

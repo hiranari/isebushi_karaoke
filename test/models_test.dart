@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/models/comprehensive_score.dart';
-import 'package:isebushi_karaoke/models/song_result.dart';
-import 'package:isebushi_karaoke/models/improvement_suggestion.dart';
-import 'package:isebushi_karaoke/models/audio_analysis_result.dart';
+import 'package:isebushi_karaoke/domain/models/comprehensive_score.dart';
+import 'package:isebushi_karaoke/domain/models/song_result.dart';
+import 'package:isebushi_karaoke/domain/models/improvement_suggestion.dart';
+import 'package:isebushi_karaoke/domain/models/audio_analysis_result.dart';
 
 /// Models（データ構造）の単体テスト
 /// 
@@ -80,7 +80,7 @@ void main() {
           songTitle: 'テスト楽曲',
           timestamp: timestamp,
           totalScore: 82.5,
-          scoreBreakdown: const ScoreBreakdown(
+          scoreBreakdown: ScoreBreakdown(
             pitchAccuracyScore: 80.0,
             stabilityScore: 85.0,
             timingScore: 83.0,
@@ -122,7 +122,7 @@ void main() {
           songTitle: '優秀なテスト',
           timestamp: DateTime.now(),
           totalScore: 95.0,
-          scoreBreakdown: const ScoreBreakdown(
+          scoreBreakdown: ScoreBreakdown(
             pitchAccuracyScore: 95.0,
             stabilityScore: 95.0,
             timingScore: 95.0,
@@ -162,7 +162,7 @@ void main() {
           songTitle: '練習が必要なテスト',
           timestamp: DateTime.now(),
           totalScore: 45.0,
-          scoreBreakdown: const ScoreBreakdown(
+          scoreBreakdown: ScoreBreakdown(
             pitchAccuracyScore: 40.0,
             stabilityScore: 45.0,
             timingScore: 50.0,
@@ -334,7 +334,7 @@ void main() {
 
     group('ScoreBreakdown', () {
       test('スコア内訳の基本プロパティ', () {
-        const breakdown = ScoreBreakdown(
+        final breakdown = ScoreBreakdown(
           pitchAccuracyScore: 85.0,
           stabilityScore: 78.0,
           timingScore: 92.0,
@@ -346,7 +346,7 @@ void main() {
       });
 
       test('完璧なスコア内訳', () {
-        const perfectBreakdown = ScoreBreakdown(
+        final perfectBreakdown = ScoreBreakdown(
           pitchAccuracyScore: 100.0,
           stabilityScore: 100.0,
           timingScore: 100.0,
@@ -358,7 +358,7 @@ void main() {
       });
 
       test('ゼロスコア内訳', () {
-        const zeroBreakdown = ScoreBreakdown(
+        final zeroBreakdown = ScoreBreakdown(
           pitchAccuracyScore: 0.0,
           stabilityScore: 0.0,
           timingScore: 0.0,
