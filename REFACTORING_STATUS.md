@@ -1,33 +1,33 @@
-# Refactoring Progress Report
+# リファクタリング進捗レポート
 
-## Completed Tasks ✅
+## 完了したタスク ✅
 
-### 1. Project Structure Reorganization
-- ✅ Created new clean architecture directory structure
-- ✅ Moved models to `lib/domain/models/`
-- ✅ Moved services to `lib/infrastructure/services/`
-- ✅ Moved providers to `lib/application/providers/`
-- ✅ Moved widgets to `lib/presentation/widgets/` (organized by category)
-- ✅ Moved pages to `lib/presentation/pages/`
-- ✅ Moved utilities to `lib/core/utils/`
+### 1. プロジェクト構造再編成
+- ✅ 新しいクリーンアーキテクチャディレクトリ構造を作成
+- ✅ モデルを`lib/domain/models/`に移動
+- ✅ サービスを`lib/infrastructure/services/`に移動
+- ✅ プロバイダーを`lib/application/providers/`に移動
+- ✅ ウィジェットを`lib/presentation/widgets/`に移動（カテゴリ別整理）
+- ✅ ページを`lib/presentation/pages/`に移動
+- ✅ ユーティリティを`lib/core/utils/`に移動
 
-### 2. Duplicate File Removal
-- ✅ Removed `improvement_suggestion_service_new.dart`
-- ✅ Removed `improvement_suggestions_widget_new.dart`
-- ✅ Removed `analysis_service_new.dart`
-- ✅ Removed duplicate test files
+### 2. 重複ファイル削除
+- ✅ `improvement_suggestion_service_new.dart`を削除
+- ✅ `improvement_suggestions_widget_new.dart`を削除
+- ✅ `analysis_service_new.dart`を削除
+- ✅ 重複テストファイルを削除
 
-### 3. Interface Definition
-- ✅ Created `IAudioProcessingService` interface
-- ✅ Created `IPitchDetectionService` interface
-- ✅ Created `IScoringService` interface
-- ✅ Created `IAnalysisService` interface
-- ✅ Created `IFeedbackService` interface
-- ✅ Created `ICacheService` interface
+### 3. インターフェース定義
+- ✅ `IAudioProcessingService`インターフェースを作成
+- ✅ `IPitchDetectionService`インターフェースを作成
+- ✅ `IScoringService`インターフェースを作成
+- ✅ `IAnalysisService`インターフェースを作成
+- ✅ `IFeedbackService`インターフェースを作成
+- ✅ `ICacheService`インターフェースを作成
 
-### 4. Core Infrastructure
-- ✅ Created audio-related exception classes
-- ✅ Created audio constants for configuration
+### 4. コアインフラストラクチャ
+- ✅ 音声関連例外クラスを作成
+- ✅ 設定用音声定数を作成
 - ✅ Created service locator for dependency injection
 - ✅ Updated main.dart to initialize service locator
 

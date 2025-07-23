@@ -5,11 +5,98 @@ import '../../core/utils/debug_logger.dart';
 import '../../infrastructure/services/scoring_service.dart';
 import '../../infrastructure/services/feedback_service.dart';
 
-/// Phase 3: 歌唱結果の状態管理を担当するProvider
+/// 歌唱結果の状態管理とUIレンダリング制御プロバイダー
 /// 
-/// 責任: SongResultの生成と状態管理
-/// ライフサイクル: 歌唱セッションごとに生成・破棄
-/// 分離原則: UI状態とビジネスロジックを分離
+/// ChangeNotifierを継承し、歌唱結果データの状態変更と
+/// UI層への通知機能を提供するアプリケーション層のプロバイダーです。
+/// Providerパターンによる宣言的状態管理を実現します。
+/// 
+/// アーキテクチャ位置:
+/// ```
+/// Presentation層
+///     ↓ (Widget → Provider監視)
+/// Application層 ← SongResultProvider
+///     ↓ (Domain Model管理)
+/// Domain層 (SongResult, ScoreBreakdown等)
+/// ```
+/// 
+/// 責任範囲:
+/// - 歌唱結果データの中央集権的状態管理
+/// - UI層への変更通知とリアクティブ更新
+/// - ドメインモデル（SongResult）のライフサイクル管理
+/// - 結果表示・非表示の制御状態
+/// - 複数ウィジェット間のデータ共有
+/// 
+/// 状態フロー:
+/// ```
+/// 初期状態 → 結果計算中 → 結果表示 → 結果非表示 → 次回準備
+///    ↓          ↓         ↓        ↓         ↓
+/// null     loading    result   hidden    cleared
+/// ```
+/// 
+/// 主要機能:
+/// 1. **結果設定**: setResult(SongResult) - 新しい歌唱結果の保存
+/// 2. **表示制御**: showResult()/hideResult() - UI表示状態の管理  
+/// 3. **状態クリア**: clearResult() - 次回セッション準備
+/// 4. **リアクティブ通知**: notifyListeners() - UI自動更新
+/// 
+/// 使用例:
+/// ```dart
+/// // Widget内での使用
+/// class ResultDisplayWidget extends StatelessWidget {
+///   @override
+///   Widget build(BuildContext context) {
+///     return Consumer<SongResultProvider>(
+///       builder: (context, provider, child) {
+///         if (provider.currentResult == null) {
+///           return Text('結果がありません');
+///         }
+///         return ResultCard(result: provider.currentResult!);
+///       },
+///     );
+///   }
+/// }
+/// 
+/// // 結果の設定
+/// final provider = Provider.of<SongResultProvider>(context, listen: false);
+/// provider.setResult(calculatedResult);
+/// provider.showResult();
+/// ```
+/// 
+/// 状態管理パターン:
+/// - **Observer Pattern**: ChangeNotifier実装による監視機能
+/// - **Singleton Pattern**: 単一インスタンスでのグローバル状態
+/// - **Command Pattern**: 状態変更メソッドの統一インターフェース
+/// 
+/// Thread Safety:
+/// - Flutterのシングルスレッドモデルに準拠
+/// - UIスレッドでの同期実行保証
+/// - ChangeNotifierの内部同期機能活用
+/// 
+/// メモリ管理:
+/// - 適切なdispose()実装
+/// - 循環参照の防止
+/// - WeakReference使用検討
+/// 
+/// デバッグ支援:
+/// - 状態変更ログ出力
+/// - デバッグ用状態ダンプ機能
+/// - 開発者向け状態監視
+/// 
+/// 将来拡張:
+/// - 結果履歴管理（複数結果保持）
+/// - 統計データ集計
+/// - 結果比較機能
+/// - エクスポート/インポート機能
+/// 
+/// 設計原則:
+/// - Single Responsibility: 歌唱結果状態管理のみ
+/// - Open/Closed: 新機能追加が容易
+/// - Liskov Substitution: ChangeNotifier互換性
+/// - Interface Segregation: 用途別メソッド分離
+/// - Dependency Inversion: 抽象化への依存
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#song-result-provider)
 class SongResultProvider extends ChangeNotifier {
   SongResult? _currentResult;
   bool _isProcessing = false;

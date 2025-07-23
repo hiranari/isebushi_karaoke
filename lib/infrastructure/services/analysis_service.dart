@@ -3,8 +3,54 @@ import '../../domain/models/comprehensive_score.dart';
 import '../../domain/models/improvement_suggestion.dart';
 import 'scoring_service.dart';
 
-/// 詳細分析を担当するサービスクラス
-/// Phase 3: 歌唱データの詳細解析とグラフ用データ生成
+/// 歌唱データの詳細分析サービス
+/// 
+/// このサービスは歌唱データの包括的な分析を実行し、
+/// ピッチ精度、安定性、タイミングの詳細データを生成します。
+/// Phase 3機能として、グラフ表示用のデータも提供します。
+/// 
+/// 責任:
+/// - ピッチ精度の詳細分析（偏差計算、正確性評価）
+/// - 音程安定性の分析（変動係数、トレンド分析）
+/// - タイミング精度の分析（遅延検出、同期性評価）
+/// - セクション別スコア計算（楽曲の部分分析）
+/// - パフォーマンス最適化（大容量データ対応）
+/// 
+/// アーキテクチャパターン:
+/// - Static Factory: 分析メソッドの静的提供
+/// - Delegation Pattern: ScoringServiceとの連携
+/// - Strategy Pattern: 分析手法の切り替え可能設計
+/// 
+/// 技術的特徴:
+/// - フレーム単位分析（32ms間隔、16kHz/512サンプル）
+/// - スムージング処理（3ポイントウィンドウ）
+/// - リアルタイム対応（大容量データの効率処理）
+/// 
+/// 使用例:
+/// ```dart
+/// // 詳細分析の実行
+/// final analysis = AnalysisService.performDetailedAnalysis(
+///   recordedPitches: [440.0, 493.88, 523.25],
+///   referencePitches: [440.0, 493.88, 523.25],
+///   score: comprehensiveScore,
+/// );
+/// 
+/// // 個別分析の実行
+/// final pitchAnalysis = service.analyzePitchAccuracy(
+///   referencePitches, recordedPitches);
+/// ```
+/// 
+/// パフォーマンス考慮:
+/// - 大容量データ対応: 44,100サンプル/秒の音声データ処理
+/// - メモリ効率: ストリーミング処理による消費量制御
+/// - 計算最適化: 数学的アルゴリズムの効率実装
+/// 
+/// 設計原則:
+/// - Single Responsibility: 分析機能のみに特化
+/// - Open/Closed: 新しい分析手法の追加が容易
+/// - Dependency Inversion: ScoringService抽象に依存
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#analysis-service)
 class AnalysisService {
   // 分析用定数
   static const double frameDurationSeconds = 0.032; // 約32ms（16kHz/512サンプル）

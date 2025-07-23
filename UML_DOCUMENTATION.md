@@ -1,4 +1,11 @@
-# UML Architecture Documentation - Isebushi Karaoke App
+# UMLアーキテクチャドキュメント - 伊勢節カラオケアプリ
+
+## 目次
+- [メインアプリケーションアーキテクチャ](#main-application-architecture)
+- [MyAppウィジェット階層](#myapp-widget-hierarchy)
+- [クラス図](#class-diagrams)
+- [依存関係図](#dependency-diagrams)
+- [アーキテクチャレイヤー図](#architecture-layers)
 
 ## UML保守ガイドライン
 
@@ -133,9 +140,120 @@ graph TB
     IO --> SERV
 ```
 
-## Class Diagrams
+## メインアプリケーションアーキテクチャ {#main-application-architecture}
 
-### 1. Domain Models
+### アプリケーション全体構成図
+
+```mermaid
+graph TB
+    subgraph "Application Entry Point"
+        MAIN[main.dart<br/>アプリケーションエントリーポイント]
+        SL[ServiceLocator<br/>依存性注入コンテナ]
+        APP[MyApp<br/>ルートウィジェット]
+    end
+    
+    subgraph "UI Layer - Presentation"
+        SSP[SongSelectPage<br/>楽曲選択画面]
+        KP[KaraokePage<br/>カラオケ実行画面]
+    end
+    
+    subgraph "State Management - Application"
+        KSP[KaraokeSessionProvider<br/>セッション状態管理]
+        SRP[SongResultProvider<br/>結果状態管理]
+    end
+    
+    subgraph "Business Logic - Domain"
+        SR[SongResult<br/>楽曲結果モデル]
+        CS[ComprehensiveScore<br/>総合スコアモデル]
+        IS[ImprovementSuggestion<br/>改善提案モデル]
+    end
+    
+    subgraph "External Services - Infrastructure"
+        AS[AnalysisService<br/>分析サービス]
+        FS[FeedbackService<br/>フィードバックサービス]
+        APS[AudioProcessingService<br/>音声処理サービス]
+    end
+    
+    MAIN --> SL
+    MAIN --> APP
+    SL --> KSP
+    SL --> AS
+    SL --> FS
+    SL --> APS
+    APP --> SSP
+    APP --> KP
+    KP --> KSP
+    KP --> SRP
+    KSP --> AS
+    KSP --> SR
+    SRP --> CS
+    SRP --> IS
+```
+
+### アプリケーション起動フロー
+
+```mermaid
+sequenceDiagram
+    participant M as main()
+    participant SL as ServiceLocator
+    participant A as MyApp
+    participant MP as MultiProvider
+    participant MA as MaterialApp
+    
+    M->>SL: initialize()
+    SL->>SL: 依存性登録
+    M->>A: runApp(MyApp())
+    A->>MP: MultiProvider作成
+    MP->>MP: Provider階層構築
+    A->>MA: MaterialApp作成
+    MA->>MA: ルーティング設定
+    MA->>MA: テーマ設定
+```
+
+## MyAppウィジェット階層 {#myapp-widget-hierarchy}
+
+### ウィジェット構成図
+
+```mermaid
+graph TB
+    subgraph "MyApp Widget Hierarchy"
+        MA[MyApp<br/>ルートウィジェット]
+        MP[MultiProvider<br/>Provider階層管理]
+        MAT[MaterialApp<br/>マテリアルデザイン適用]
+        
+        subgraph "Providers"
+            KSP[KaraokeSessionProvider<br/>カラオケセッション状態]
+            SRP[SongResultProvider<br/>結果表示状態]
+        end
+        
+        subgraph "Routes"
+            HOME[/ - SongSelectPage<br/>楽曲選択画面]
+            KARAOKE[/karaoke - KaraokePage<br/>カラオケ実行画面]
+        end
+    end
+    
+    MA --> MP
+    MP --> KSP
+    MP --> SRP
+    MP --> MAT
+    MAT --> HOME
+    MAT --> KARAOKE
+```
+
+### ナビゲーションフロー
+
+```mermaid
+stateDiagram-v2
+    [*] --> SongSelect : アプリ起動
+    SongSelect --> Karaoke : 楽曲選択
+    Karaoke --> Result : 歌唱完了
+    Result --> SongSelect : 戻る
+    Result --> Karaoke : 再挑戦
+```
+
+## クラス図 {#class-diagrams}
+
+### 1. ドメインモデル
 
 ```mermaid
 classDiagram

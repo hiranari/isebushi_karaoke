@@ -1,33 +1,33 @@
-# Comprehensive Refactoring Plan for Isebushi Karaoke App
+# 伊勢節カラオケアプリ包括的リファクタリング計画
 
-## Overview
+## 概要
 
-This document outlines a comprehensive refactoring plan for the Isebushi Karaoke application following established guidelines from `AUDIO_DEVELOPMENT_GUIDELINES.md` and implementing clean architecture principles.
+このドキュメントは、`AUDIO_DEVELOPMENT_GUIDELINES.md`からの確立されたガイドラインに従い、クリーンアーキテクチャ原則を実装する伊勢節カラオケアプリケーションの包括的リファクタリング計画を概説します。
 
-## Current State Analysis
+## 現状分析
 
-### Issues Identified
-1. **Duplicate Services**: Multiple versions of improvement suggestion services (`improvement_suggestion_service.dart` and `improvement_suggestion_service_new.dart`)
-2. **Widget Duplication**: Multiple versions of improvement suggestion widgets
-3. **Service Coupling**: Tight coupling between audio processing and pitch detection services
-4. **Inconsistent Naming**: Some services have unclear responsibilities
-5. **Missing Abstraction**: No clear interface definitions for services
-6. **WAV-Only Transition**: Complete implementation of WAV-only support as per guidelines
+### 特定された問題
+1. **重複サービス**: 改善提案サービスの複数バージョン（`improvement_suggestion_service.dart`と`improvement_suggestion_service_new.dart`）
+2. **ウィジェット重複**: 改善提案ウィジェットの複数バージョン
+3. **サービス結合**: 音声処理とピッチ検出サービス間の密結合
+4. **一貫性のない命名**: 一部のサービスで責任が不明確
+5. **抽象化の欠如**: サービス用の明確なインターフェース定義なし
+6. **WAVのみ移行**: ガイドラインに従ったWAVのみサポートの完全実装
 
-## Refactoring Goals
+## リファクタリング目標
 
-### Primary Objectives
-1. **Eliminate Duplication**: Remove duplicate service and widget files
-2. **Improve Separation of Concerns**: Clear boundaries between services
-3. **Enhance Maintainability**: Better code organization and documentation
-4. **Implement Clean Architecture**: Proper layering and dependency inversion
-5. **Standardize Naming**: Consistent naming conventions across the codebase
-6. **Create Comprehensive UML**: Document architecture with detailed diagrams
+### 主要目的
+1. **重複の排除**: 重複サービス・ウィジェットファイルの削除
+2. **関心の分離改善**: サービス間の明確な境界
+3. **保守性向上**: より良いコード構成とドキュメント
+4. **クリーンアーキテクチャ実装**: 適切な階層化と依存性逆転
+5. **命名標準化**: コードベース全体の一貫した命名規則
+6. **包括的UML作成**: 詳細図によるアーキテクチャドキュメント
 
-### Secondary Objectives
-1. **Performance Optimization**: Reduce redundant processing
-2. **Error Handling**: Consistent error handling patterns
-3. **Testing Coverage**: Improve test coverage with refactored code
+### 副次目的
+1. **パフォーマンス最適化**: 冗長処理の削減
+2. **エラーハンドリング**: 一貫したエラーハンドリングパターン
+3. **テストカバレッジ**: リファクタリングされたコードのテストカバレッジ向上
 4. **Documentation**: Complete inline and architectural documentation
 
 ## Proposed Architecture

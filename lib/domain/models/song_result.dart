@@ -1,10 +1,81 @@
 import 'dart:math' as math;
 
-/// Phase 3: 歌唱結果の包括的データモデル
+/// 歌唱結果の包括的データモデル
 /// 
-/// 単一責任の原則に従い、歌唱結果の全ての情報を管理します。
-/// スコア、分析データ、フィードバックを構造化して保持し、
-/// UI層から分離されたデータアクセスを提供します。
+/// カラオケセッションで得られた全ての分析データと評価結果を
+/// 構造化して管理するドメインモデルです。
+/// Clean ArchitectureのDomain層に位置し、ビジネスルールを表現します。
+/// 
+/// 責任:
+/// - 歌唱結果データの一元管理（楽曲情報、スコア、分析データ）
+/// - スコア階層の構造化（総合スコア、詳細内訳、カテゴリ別分析）
+/// - フィードバック情報の統合管理
+/// - データの永続化対応（JSON変換）
+/// - UI表示用のヘルパーメソッド提供
+/// 
+/// データ構造:
+/// ```
+/// SongResult
+/// ├── 基本情報（楽曲名、タイムスタンプ、総合スコア）
+/// ├── スコア内訳（ScoreBreakdown）
+/// │   ├── ピッチ精度スコア（70%重み）
+/// │   ├── 安定性スコア（20%重み）
+/// │   └── タイミングスコア（10%重み）
+/// ├── 詳細分析データ
+/// │   ├── ピッチ分析（PitchAnalysis）
+/// │   ├── タイミング分析（TimingAnalysis）
+/// │   └── 安定性分析（StabilityAnalysis）
+/// └── フィードバック（改善提案・称賛）
+/// ```
+/// 
+/// ドメインルール:
+/// - 総合スコアは0-100の範囲
+/// - スコアレベル: S(95+), A(85+), B(75+), C(65+), D(55+), F(55未満)
+/// - タイムスタンプはUTC形式で保存
+/// - フィードバックは複数の提案を配列で管理
+/// 
+/// 不変性保証:
+/// - すべてのフィールドはfinalで不変
+/// - 分析データの後から変更を防止
+/// - データ整合性の保証
+/// 
+/// 使用例:
+/// ```dart
+/// // 歌唱結果の作成
+/// final result = SongResult(
+///   songTitle: '伊勢節',
+///   timestamp: DateTime.now(),
+///   totalScore: 85.0,
+///   scoreBreakdown: scoreBreakdown,
+///   pitchAnalysis: pitchAnalysis,
+///   timingAnalysis: timingAnalysis,
+///   stabilityAnalysis: stabilityAnalysis,
+///   feedback: ['素晴らしい歌声です！'],
+/// );
+/// 
+/// // スコアレベル判定
+/// if (result.isExcellent) {
+///   print('優秀な結果: ${result.scoreLevel}');
+/// }
+/// 
+/// // JSON変換
+/// final json = result.toJson();
+/// final restored = SongResult.fromJson(json);
+/// ```
+/// 
+/// 設計原則:
+/// - Single Responsibility: 歌唱結果データの管理のみ
+/// - Open/Closed: 新しい分析データの追加が容易
+/// - Liskov Substitution: 基底クラスなしの純粋なデータモデル
+/// - Interface Segregation: 用途別のヘルパーメソッド提供
+/// - Dependency Inversion: 外部依存なしの純粋なドメインモデル
+/// 
+/// パフォーマンス考慮:
+/// - 軽量なデータ構造
+/// - 効率的なJSON変換
+/// - メモリ効率の良い不変オブジェクト
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#song-result-model)
 class SongResult {
   final String songTitle;
   final DateTime timestamp;

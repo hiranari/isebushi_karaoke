@@ -3,10 +3,106 @@ import '../../domain/models/audio_data.dart';
 import 'wav_processor.dart';
 import '../../core/utils/pcm_processor.dart';
 
-/// 音声処理サービス
-/// Single Responsibility Principle: 音声処理の統一インターフェースのみを提供
-/// Open/Closed Principle: 新しい音声形式の追加に対してオープン、既存コードの変更に対してクローズ
-/// Dependency Inversion Principle: 具体的な実装ではなく抽象化に依存
+/// 音声処理・音響分析統合サービス
+/// 
+/// カラオケアプリケーションの音声処理パイプラインを担当する
+/// インフラストラクチャ層の中核サービスです。
+/// リアルタイム音声入力から高品質な音響特徴量を抽出し、
+/// 歌唱評価システムで使用可能な形式に変換します。
+/// 
+/// アーキテクチャ位置:
+/// ```
+/// Hardware層 (マイク、スピーカー)
+///     ↓ (生音声データ)
+/// Infrastructure層 ← AudioProcessingService
+///     ↓ (処理済み音響データ)
+/// Domain層 (音響分析モデル)
+///     ↓ (評価結果)
+/// Application層 (ビジネスロジック)
+/// ```
+/// 
+/// 責任範囲:
+/// - 音声ファイルの読み込みと前処理
+/// - 音声データフォーマットの統一化
+/// - PCMデータの正規化と品質向上
+/// - AudioDataモデルへの変換
+/// - 音声処理エラーの適切なハンドリング
+/// 
+/// 音声処理パイプライン:
+/// ```
+/// 音声ファイル/アセット
+///     ↓
+/// 1. ファイル読み込み
+///    ├── アセットからの読み込み
+///    ├── ローカルファイルからの読み込み
+///    └── フォーマット検証
+///     ↓
+/// 2. 音声データ変換
+///    ├── WAV形式のパース
+///    ├── サンプリングレート確認
+///    ├── チャンネル情報取得
+///    └── 生PCMデータ抽出
+///     ↓
+/// 3. 前処理・正規化
+///    ├── PCMデータ正規化
+///    ├── ノイズ除去
+///    ├── 振幅調整
+///    └── 品質チェック
+///     ↓
+/// 4. ドメインモデル変換
+///    ├── AudioDataオブジェクト生成
+///    ├── メタデータ付与
+///    └── 型安全性保証
+/// ```
+/// 
+/// 設計原則の適用:
+/// - **Single Responsibility**: 音声処理の統一インターフェースのみを提供
+/// - **Open/Closed**: 新しい音声形式の追加に対してオープン、既存コードの変更に対してクローズ
+/// - **Dependency Inversion**: 具体的な実装ではなく抽象化に依存
+/// - **Delegation Pattern**: 専門処理をWavProcessor等に委譲
+/// 
+/// 使用例:
+/// ```dart
+/// // アセットからの音声読み込み
+/// final audioData = await AudioProcessingService.loadWavFromAsset(
+///   'assets/sounds/reference_song.wav'
+/// );
+/// 
+/// // ローカルファイルからの読み込み
+/// final recordedData = await AudioProcessingService.loadWavFromFile(
+///   '/path/to/recorded_audio.wav'
+/// );
+/// 
+/// // PCMデータの正規化
+/// final normalizedPcm = AudioProcessingService.normalizePcmData(
+///   audioData.samples
+/// );
+/// ```
+/// 
+/// エラーハンドリング:
+/// - ファイル読み込みエラーの適切な処理
+/// - 不正な音声フォーマットの検出
+/// - メモリ不足エラーの回復
+/// - プラットフォーム固有エラーの抽象化
+/// 
+/// パフォーマンス考慮:
+/// - 静的メソッドによる軽量実装
+/// - メモリ効率的なデータ変換
+/// - 必要最小限の処理ステップ
+/// - ガベージコレクション負荷の軽減
+/// 
+/// 依存関係:
+/// - WavProcessor: WAV形式の専門処理
+/// - PcmProcessor: PCMデータの正規化
+/// - AudioData: ドメインモデル
+/// 
+/// 将来拡張:
+/// - MP3、AAC等の追加フォーマット対応
+/// - リアルタイムストリーミング処理
+/// - 高品質リサンプリング
+/// - ノイズリダクション機能
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#audio-processing-service)
 class AudioProcessingService {
   /// WAVファイルをアセットから読み込み、AudioDataに変換
   /// 

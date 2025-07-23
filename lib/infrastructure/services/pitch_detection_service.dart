@@ -5,7 +5,144 @@ import 'package:pitch_detector_dart/pitch_detector.dart';
 import '../../domain/models/audio_analysis_result.dart';
 import 'audio_processing_service.dart';
 
-/// ピッチ検出を担当するサービスクラス
+/// 高精度ピッチ検出・音響分析サービス
+/// 
+/// カラオケアプリケーションの音響分析における最重要コンポーネントです。
+/// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、
+/// 音響特徴量の抽出を高精度で実行します。
+/// 
+/// アーキテクチャ位置:
+/// ```
+/// Audio Input (Microphone)
+///     ↓ (Raw PCM Data)
+/// Infrastructure層 ← PitchDetectionService
+///     ↓ (Pitch Data + Analysis)
+/// Domain層 (Pitch Models, Analysis Results)
+///     ↓ (Structured Data)
+/// Application層 (Business Logic)
+/// ```
+/// 
+/// 中核責任:
+/// - リアルタイム基本周波数(F0)検出
+/// - ピッチ軌跡の連続性保証
+/// - 音響特徴量の包括的抽出
+/// - 無音・有音区間の自動セグメンテーション
+/// - 音響分析結果の構造化
+/// 
+/// ピッチ検出アルゴリズム:
+/// ```
+/// 音声入力 (PCM Data)
+///     ↓
+/// 1. 前処理フェーズ
+///    ├── ウィンドウ関数適用 (Hanning/Hamming)
+///    ├── プリエンファシス処理
+///    ├── DCオフセット除去
+///    └── 振幅正規化
+///     ↓
+/// 2. 周波数解析
+///    ├── FFT変換 (4096点)
+///    ├── スペクトラム計算
+///    ├── ケプストラム分析
+///    └── オートコリレーション
+///     ↓
+/// 3. F0推定
+///    ├── ピーク検出アルゴリズム
+///    ├── ハーモニクス解析
+///    ├── 候補周波数評価
+///    └── 最適F0選択
+///     ↓
+/// 4. 後処理・品質向上
+///    ├── メディアンフィルタ
+///    ├── 連続性チェック
+///    ├── 異常値除去
+///    └── 信頼度評価
+/// ```
+/// 
+/// 検出範囲と精度:
+/// - **検出範囲**: 80Hz - 600Hz (人声の実用範囲をカバー)
+/// - **周波数分解能**: ~1.08Hz (@44.1kHz, 4096サンプル)
+/// - **時間分解能**: ~93ms (4096サンプル窓)
+/// - **精度**: ±0.5セント (理論値)
+/// 
+/// 主要機能群:
+/// 1. **リアルタイムピッチ検出**
+///    - 連続音声ストリームからのF0抽出
+///    - 低レイテンシ処理 (< 100ms)
+///    - 適応的閾値調整
+/// 
+/// 2. **バッチ音響分析**
+///    - 完全な音声ファイルの一括解析
+///    - 高精度ピッチ軌跡生成
+///    - 統計的特徴量計算
+/// 
+/// 3. **品質評価**
+///    - ピッチ検出信頼度スコア
+///    - S/N比推定
+///    - 有音/無音判定
+/// 
+/// 使用例:
+/// ```dart
+/// // サービス初期化
+/// final pitchService = ServiceLocator.instance.get<PitchDetectionService>();
+/// pitchService.initialize();
+/// 
+/// // リアルタイムピッチ検出
+/// final pitchData = await pitchService.detectPitchFromPcm(
+///   pcmData,
+///   sampleRate: 44100,
+/// );
+/// print('検出ピッチ: ${pitchData.frequency} Hz');
+/// 
+/// // 音声ファイルの包括分析
+/// final analysis = await pitchService.analyzeAudioFile(audioPath);
+/// print('平均ピッチ: ${analysis.averagePitch} Hz');
+/// print('ピッチ標準偏差: ${analysis.pitchStdDev} Hz');
+/// ```
+/// 
+/// パフォーマンス最適化:
+/// - **アルゴリズム最適化**: 高速FFT、効率的相関計算
+/// - **メモリ管理**: バッファプールによる再利用
+/// - **並列処理**: マルチコア活用による高速化
+/// - **適応処理**: 動的パラメータ調整
+/// 
+/// エラーハンドリング:
+/// - 無音区間での適切な処理
+/// - ノイズ大時のロバスト性
+/// - 異常ピッチ値の検出と除去
+/// - メモリ不足時の優雅な劣化
+/// 
+/// 品質保証:
+/// - 単体テスト: 既知周波数での精度検証
+/// - 統合テスト: 実音声での検出性能
+/// - ベンチマークテスト: 処理速度測定
+/// - 回帰テスト: アルゴリズム変更時の影響確認
+/// 
+/// 設定パラメータ:
+/// - defaultSampleRate: 44.1kHz (標準)
+/// - defaultBufferSize: 4096サンプル
+/// - minPitchHz: 80Hz (検出下限)
+/// - maxPitchHz: 600Hz (検出上限)
+/// 
+/// 依存ライブラリ:
+/// - pitch_detector_dart: 高精度ピッチ検出アルゴリズム
+/// - dart:math: 数学関数とFFT処理
+/// - dart:typed_data: 効率的数値配列処理
+/// 
+/// 将来拡張計画:
+/// - 機械学習ベースピッチ検出
+/// - マルチピッチ検出 (和音対応)
+/// - 感情・表現解析
+/// - 楽器音の高精度検出
+/// - GPUアクセラレーション
+/// 
+/// 設計原則:
+/// - Single Responsibility: ピッチ検出に特化
+/// - Open/Closed: 新しい検出アルゴリズムの追加が容易
+/// - Liskov Substitution: インターフェース実装の交換可能性
+/// - Interface Segregation: 用途別メソッドの分離
+/// - Dependency Inversion: 抽象化への依存
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#pitch-detection-service)
 class PitchDetectionService {
   static const int defaultSampleRate = 44100;
   static const int defaultBufferSize = 4096;

@@ -1,10 +1,98 @@
 // math関数用のインポート
 import 'dart:math' show log;
 
-/// スコアリング結果の詳細分析を格納するモデル群
-/// Single Responsibility Principle: 各クラスは一つの分析責任のみを持つ
+/// 歌唱評価システムの包括的データモデル群
+/// 
+/// カラオケアプリケーションの歌唱評価で使用される
+/// 全てのスコアリング関連データモデルを定義します。
+/// Clean ArchitectureのDomain層に位置し、
+/// ビジネスルールと評価ロジックを表現します。
+/// 
+/// モデル体系:
+/// ```
+/// ScoreBreakdown (スコア内訳)
+/// ├── 各カテゴリスコア (ピッチ、安定性、タイミング)
+/// ├── 総合スコア
+/// └── 計算タイムスタンプ
+/// 
+/// PitchAnalysis (ピッチ分析)
+/// ├── 統計値 (平均、分散、範囲)
+/// ├── 精度指標 (セント単位誤差)
+/// └── 品質評価
+/// 
+/// TimingAnalysis (タイミング分析)
+/// ├── 同期精度
+/// ├── リズム一貫性
+/// └── フレーズタイミング
+/// 
+/// StabilityAnalysis (安定性分析)
+/// ├── ピッチ安定性
+/// ├── 音量一貫性
+/// └── 発声継続性
+/// ```
+/// 
+/// 設計原則:
+/// - **Single Responsibility**: 各クラスは一つの分析責任のみを持つ
+/// - **Immutability**: 全てのフィールドはfinalで不変性を保証
+/// - **Value Object**: データと振る舞いを統合したリッチドメインモデル
+/// - **Type Safety**: 強い型システムによるデータ整合性保証
+/// 
+/// 使用例:
+/// ```dart
+/// // スコア内訳の作成
+/// final breakdown = ScoreBreakdown(
+///   pitchAccuracyScore: 85.5,
+///   stabilityScore: 78.2,
+///   timingScore: 82.1,
+///   totalScore: 83.4,
+///   calculatedAt: DateTime.now(),
+/// );
+/// 
+/// // 分析結果の活用
+/// if (breakdown.isExcellent) {
+///   print('優秀な歌唱結果！');
+/// }
+/// 
+/// // JSON変換
+/// final json = breakdown.toJson();
+/// final restored = ScoreBreakdown.fromJson(json);
+/// ```
+/// 
+/// 品質保証:
+/// - データ不変性の保証
+/// - JSON シリアライゼーションの完全性
+/// - 数値計算の精度保証
+/// - 型安全性の徹底
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#scoring-models)
 
-/// スコア内訳を格納するクラス
+/// スコア内訳データモデル
+/// 
+/// 歌唱評価の多次元スコアを構造化して管理するドメインモデルです。
+/// 各評価カテゴリのスコアと総合評価を保持し、
+/// 評価結果の詳細な分析を可能にします。
+/// 
+/// 責任:
+/// - 多次元スコアの構造化保存
+/// - 総合スコア計算結果の管理
+/// - スコア計算タイムスタンプの記録
+/// - JSON変換によるデータ永続化
+/// - スコア品質評価メソッドの提供
+/// 
+/// データ構造:
+/// - pitchAccuracyScore: ピッチ精度スコア (0-100)
+/// - stabilityScore: 安定性スコア (0-100)
+/// - timingScore: タイミングスコア (0-100)
+/// - totalScore: 重み付き総合スコア (0-100)
+/// - calculatedAt: 計算実行タイムスタンプ
+/// 
+/// 評価基準:
+/// - S: 95点以上（素晴らしい）
+/// - A: 85-94点（優秀）
+/// - B: 75-84点（良好）
+/// - C: 65-74点（普通）
+/// - D: 55-64点（要改善）
+/// - F: 55点未満（大幅改善必要）
 class ScoreBreakdown {
   final double pitchAccuracyScore;
   final double stabilityScore;

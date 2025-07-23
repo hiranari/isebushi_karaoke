@@ -4,11 +4,70 @@ import '../../infrastructure/services/scoring_service.dart';
 import '../../infrastructure/services/feedback_service.dart';
 import '../../core/utils/debug_logger.dart';
 
-/// Phase 3: 歌唱セッション状態管理
+/// 歌唱セッション状態管理プロバイダー
 /// 
-/// Providerパターンを使用し、歌唱セッションのライフサイクルと
-/// 状態管理を担当します。単一責任の原則に従い、状態の更新と
-/// 通知のみに責任を持ちます。
+/// カラオケセッション全体のライフサイクル管理と状態制御を担当します。
+/// Providerパターンを使用し、UI層とビジネスロジック層を繋ぐ重要な役割を果たします。
+/// 
+/// 責任:
+/// - セッション状態の管理（準備中→録音中→分析中→完了）
+/// - 録音データの収集と管理（基準ピッチ、録音ピッチ）
+/// - リアルタイムピッチ更新の通知
+/// - スコア計算の制御と結果管理
+/// - UI表示状態の制御（スコア表示モード等）
+/// - エラー状態の管理と通知
+/// 
+/// アーキテクチャパターン:
+/// - Provider Pattern: ChangeNotifierによる状態変更通知
+/// - Observer Pattern: UI層への状態変更の自動通知
+/// - State Pattern: セッション状態の遷移管理
+/// - Command Pattern: 操作の実行と状態更新の分離
+/// 
+/// 状態遷移:
+/// ```
+/// ready → recording → analyzing → completed
+///   ↑                              ↓
+///   ←――――――――― reset ←――――――――――――――
+/// ```
+/// 
+/// データフロー:
+/// 1. UI操作（録音開始/停止）
+/// 2. 状態変更とビジネスロジック実行
+/// 3. 結果データの更新
+/// 4. UI通知（notifyListeners）
+/// 
+/// 依存サービス:
+/// - ScoringService: スコア計算処理
+/// - FeedbackService: フィードバック生成
+/// - DebugLogger: デバッグログ出力
+/// 
+/// 使用例:
+/// ```dart
+/// // Provider経由でのアクセス
+/// final provider = Provider.of<KaraokeSessionProvider>(context);
+/// 
+/// // セッション開始
+/// await provider.startSession('楽曲名', referencePitches);
+/// 
+/// // 録音制御
+/// provider.startRecording();
+/// provider.updateCurrentPitch(440.0);
+/// await provider.stopRecording();
+/// ```
+/// 
+/// 設計原則:
+/// - Single Responsibility: セッション状態管理のみに特化
+/// - Open/Closed: 新しい状態や操作の追加が容易
+/// - Liskov Substitution: ChangeNotifierの契約を遵守
+/// - Interface Segregation: 必要な機能のみをpublicに公開
+/// - Dependency Inversion: 具象サービスではなく抽象に依存
+/// 
+/// パフォーマンス考慮:
+/// - リアルタイムピッチ更新の効率化
+/// - 大容量録音データの軽量な管理
+/// - UI更新頻度の最適化
+/// 
+/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#karaoke-session-provider)
 class KaraokeSessionProvider extends ChangeNotifier {
   // セッション状態
   KaraokeSessionState _state = KaraokeSessionState.ready;
