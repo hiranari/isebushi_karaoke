@@ -16,6 +16,8 @@ import '../widgets/progressive_score_display.dart';
 import '../widgets/realtime_pitch_visualizer.dart';
 import '../utils/singer_encoder.dart';
 import '../utils/debug_logger.dart';
+import '../utils/pitch_debug_helper.dart';
+import '../models/audio_analysis_result.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 
@@ -95,9 +97,10 @@ class _KaraokePageState extends State<KaraokePage> {
         setState(() => _analysisStatus = 'ピッチデータを解析中...');
         _showSnackBar('ピッチデータを解析中...');
 
-        final analysisResult = audioFile.toLowerCase().endsWith('.wav')
-            ? await _pitchDetectionService.extractPitchFromWav(audioFile)
-            : await _pitchDetectionService.extractPitchFromMp3(audioFile);
+        final analysisResult = await _pitchDetectionService.extractPitchFromAudio(
+          sourcePath: audioFile,
+          isAsset: true,
+        );
 
         pitches = analysisResult.pitches;
         await CacheService.saveToCache(audioFile, analysisResult);
@@ -106,9 +109,45 @@ class _KaraokePageState extends State<KaraokePage> {
         _showSnackBar('ピッチデータの解析が完了しました');
       }
 
+      // === 基準ピッチデバッグ情報 ===
+      debugPrint('=== 基準ピッチ抽出デバッグ ===');
+      debugPrint('抽出されたピッチ数: ${pitches.length}');
+      debugPrint('基準ピッチサンプル（最初の10個）:');
+      final baseSample = pitches.take(10).toList();
+      for (int i = 0; i < baseSample.length; i++) {
+        debugPrint('  [$i]: ${baseSample[i].toStringAsFixed(2)}Hz');
+      }
+
+      // ピッチデータの範囲チェックと補正（伊勢節に適した範囲：100-500Hz）
+      final filteredPitches = pitches.map((pitch) {
+        if (pitch > 0 && (pitch < 100.0 || pitch > 500.0)) {
+          return 0.0; // 範囲外の値は無音として扱う
+        }
+        return pitch;
+      }).toList();
+
+      // 統計情報をログ出力
+      final validOriginal = pitches.where((p) => p > 0).toList();
+      final validFiltered = filteredPitches.where((p) => p > 0).toList();
+      if (validOriginal.isNotEmpty && validFiltered.isNotEmpty) {
+        final avgOriginal = validOriginal.reduce((a, b) => a + b) / validOriginal.length;
+        final avgFiltered = validFiltered.reduce((a, b) => a + b) / validFiltered.length;
+        debugPrint('基準ピッチ統計 - 元データ: ${validOriginal.length}個, 平均: ${avgOriginal.toStringAsFixed(1)}Hz');
+        debugPrint('基準ピッチ統計 - フィルター後: ${validFiltered.length}個, 平均: ${avgFiltered.toStringAsFixed(1)}Hz');
+        
+        // ピッチ範囲の確認
+        final minOriginal = validOriginal.reduce((a, b) => a < b ? a : b);
+        final maxOriginal = validOriginal.reduce((a, b) => a > b ? a : b);
+        final minFiltered = validFiltered.reduce((a, b) => a < b ? a : b);
+        final maxFiltered = validFiltered.reduce((a, b) => a > b ? a : b);
+        debugPrint('基準ピッチ範囲 - 元データ: ${minOriginal.toStringAsFixed(2)}Hz - ${maxOriginal.toStringAsFixed(2)}Hz');
+        debugPrint('基準ピッチ範囲 - フィルター後: ${minFiltered.toStringAsFixed(2)}Hz - ${maxFiltered.toStringAsFixed(2)}Hz');
+      }
+      debugPrint('=== 基準ピッチデバッグ終了 ===');
+
       // Phase 3: プロバイダーでセッション初期化
       if (mounted) {
-        context.read<KaraokeSessionProvider>().initializeSession(songTitle, pitches);
+        context.read<KaraokeSessionProvider>().initializeSession(songTitle, filteredPitches);
       }
 
     } catch (e) {
@@ -162,7 +201,7 @@ class _KaraokePageState extends State<KaraokePage> {
   Future<void> _playAudio() async {
     try {
       final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
-      final audioFile = selectedSong?['audioFile'] ?? 'assets/sounds/kiku.mp3';
+      final audioFile = selectedSong?['audioFile'] ?? 'assets/sounds/Test.wav';
       
       debugPrint('音源再生を開始: $audioFile');
       
@@ -225,9 +264,12 @@ class _KaraokePageState extends State<KaraokePage> {
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
-          sampleRate: 16000,
+          sampleRate: 44100,  // 基準ピッチ検出と同じサンプリングレートに統一
           numChannels: 1,
-          bitRate: 16000 * 16,
+          bitRate: 44100 * 16,  // サンプリングレートに合わせて調整
+          autoGain: true,      // 自動ゲイン調整を有効化
+          echoCancel: true,    // エコーキャンセル有効化
+          noiseSuppress: true, // ノイズ抑制有効化
         ),
         path: recordingPath,
       );
@@ -310,30 +352,33 @@ class _KaraokePageState extends State<KaraokePage> {
         final referencePitch = sessionProvider.referencePitches[referenceIndex];
         
         if (referencePitch > 0) {
-          // より大きなバリエーションを加えて、実際の歌唱に近いピッチを生成
-          final variation = (random.nextDouble() - 0.5) * 100; // ±50Hzのバリエーション
-          final pitchDrift = math.sin(recordedCount * 0.1) * 20; // 周期的なピッチドリフト
+          // より自然で控えめなバリエーションに修正
+          final variation = (random.nextDouble() - 0.5) * 20; // ±10Hzの小さなバリエーション
+          final pitchDrift = math.sin(recordedCount * 0.05) * 5; // 小さな周期的変動
           
           final simulatedPitch = referencePitch + variation + pitchDrift;
+          
+          // ピッチが適切な範囲内かチェック（伊勢節に適した範囲：100-500Hz）
+          final clampedPitch = simulatedPitch.clamp(100.0, 500.0);
           
           // 時々無音を挿入して、より自然な歌唱パターンを作る
           if (random.nextDouble() < 0.1) {
             sessionProvider.updateCurrentPitch(null);
           } else {
-            sessionProvider.updateCurrentPitch(simulatedPitch);
+            sessionProvider.updateCurrentPitch(clampedPitch);
           }
         } else {
           // 無音部分
           sessionProvider.updateCurrentPitch(null);
         }
       } else {
-        // 基準ピッチがない場合は、より多様なピッチを生成
-        final baseFrequencies = [220.0, 246.94, 261.63, 293.66, 329.63, 369.99, 415.30]; // A3-A4の音階
+        // 基準ピッチがない場合は、より控えめなピッチを生成（伊勢節に適した音域に調整）
+        final baseFrequencies = [196.0, 220.0, 246.94, 261.63, 293.66, 329.63, 349.23]; // G3-F4の音階（伝統音楽により適した範囲）
         final baseIndex = recordedCount % baseFrequencies.length;
         final basePitch = baseFrequencies[baseIndex];
         
-        final variation = (random.nextDouble() - 0.5) * 60; // ±30Hzのバリエーション
-        final simulatedPitch = basePitch + variation;
+        final variation = (random.nextDouble() - 0.5) * 15; // ±7.5Hzの小さなバリエーション
+        final simulatedPitch = (basePitch + variation).clamp(100.0, 500.0);
         
         sessionProvider.updateCurrentPitch(simulatedPitch);
       }
@@ -392,12 +437,91 @@ class _KaraokePageState extends State<KaraokePage> {
       final fileSize = await file.length();
       debugPrint('録音ファイルサイズ: $fileSize バイト');
       
-      // 録音ファイルからピッチを抽出（ファイルシステム対応）
-      final analysisResult = await _pitchDetectionService.extractPitchFromWavFile(recordingPath);
+      // 録音ファイルからピッチを抽出（ファイルシステム対応、基準ピッチ使用）
+      final sessionProvider = context.read<KaraokeSessionProvider>();
+      var analysisResult = await _pitchDetectionService.extractPitchFromAudio(
+        sourcePath: recordingPath,
+        isAsset: false,
+        referencePitches: sessionProvider.referencePitches, // 基準ピッチを渡す
+      );
       
       // 抽出したピッチをプロバイダーに設定
       if (mounted) {
-        final sessionProvider = context.read<KaraokeSessionProvider>();
+        
+        // === ピッチ比較デバッグ情報 ===
+        debugPrint('=== ピッチ比較デバッグ ===');
+        debugPrint('基準ピッチサンプル（最初の10個）:');
+        final refSample = sessionProvider.referencePitches.take(10).toList();
+        for (int i = 0; i < refSample.length; i++) {
+          debugPrint('  [$i]: ${refSample[i].toStringAsFixed(2)}Hz');
+        }
+
+        debugPrint('録音ピッチサンプル（最初の10個）:');
+        final recSample = analysisResult.pitches.take(10).toList();
+        for (int i = 0; i < recSample.length; i++) {
+          debugPrint('  [$i]: ${recSample[i].toStringAsFixed(2)}Hz');
+        }
+
+        // 統計情報
+        final validRef = sessionProvider.referencePitches.where((p) => p > 0).toList();
+        final validRec = analysisResult.pitches.where((p) => p > 0).toList();
+        if (validRef.isNotEmpty && validRec.isNotEmpty) {
+          final avgRef = validRef.reduce((a, b) => a + b) / validRef.length;
+          double avgRec = validRec.reduce((a, b) => a + b) / validRec.length;
+          
+          debugPrint('補正前 - 録音ピッチ平均: ${avgRec.toStringAsFixed(2)}Hz');
+          
+          // 参照ピッチを使用して録音ピッチにオクターブ補正を適用
+          final correctedRecPitches = <double>[];
+          for (double pitch in analysisResult.pitches) {
+            if (pitch > 0) {
+              double correctedPitch = _pitchDetectionService.correctOctave(pitch, avgRef);
+              correctedRecPitches.add(correctedPitch);
+            } else {
+              correctedRecPitches.add(0.0);
+            }
+          }
+          
+          // 補正後の統計
+          final validCorrected = correctedRecPitches.where((p) => p > 0).toList();
+          if (validCorrected.isNotEmpty) {
+            final avgCorrected = validCorrected.reduce((a, b) => a + b) / validCorrected.length;
+            final pitchRatio = avgCorrected / avgRef;
+            
+            debugPrint('基準ピッチ平均: ${avgRef.toStringAsFixed(2)}Hz (有効: ${validRef.length}個)');
+            debugPrint('補正後録音ピッチ平均: ${avgCorrected.toStringAsFixed(2)}Hz (有効: ${validCorrected.length}個)');
+            debugPrint('ピッチ比率: ${pitchRatio.toStringAsFixed(3)}');
+            debugPrint('平均差: ${(avgCorrected - avgRef).toStringAsFixed(2)}Hz');
+            
+            // 新しいAudioAnalysisResultを作成（補正後のピッチ使用）
+            analysisResult = AudioAnalysisResult(
+              pitches: correctedRecPitches,
+              sampleRate: analysisResult.sampleRate,
+              createdAt: analysisResult.createdAt,
+              sourceFile: analysisResult.sourceFile,
+            );
+          }
+          
+          // ピッチ範囲の確認
+          final minRef = validRef.reduce((a, b) => a < b ? a : b);
+          final maxRef = validRef.reduce((a, b) => a > b ? a : b);
+          final validFinalRec = analysisResult.pitches.where((p) => p > 0).toList();
+          if (validFinalRec.isNotEmpty) {
+            final minRec = validFinalRec.reduce((a, b) => a < b ? a : b);
+            final maxRec = validFinalRec.reduce((a, b) => a > b ? a : b);
+            debugPrint('基準ピッチ範囲: ${minRef.toStringAsFixed(2)}Hz - ${maxRef.toStringAsFixed(2)}Hz');
+            debugPrint('最終録音ピッチ範囲: ${minRec.toStringAsFixed(2)}Hz - ${maxRec.toStringAsFixed(2)}Hz');
+          }
+        }
+        
+        // 詳細な比較分析
+        PitchDebugHelper.comparePitchData(
+          sessionProvider.referencePitches, 
+          analysisResult.pitches
+        );
+        
+        debugPrint('=== デバッグ終了 ===');
+        
         // 既存の録音ピッチをクリアして、実際の録音データで置き換える
         sessionProvider.replaceRecordedPitches(analysisResult.pitches);
         
@@ -607,32 +731,106 @@ class _KaraokePageState extends State<KaraokePage> {
   Widget _buildSessionStatusCard(KaraokeSessionProvider sessionProvider) {
     final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'セッション状態',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            _buildStatusRow('楽曲', selectedSong?['title'] ?? '-'),
-            if (selectedSong?['singer'] != null)
-              _buildStatusRow('歌手', SingerEncoder.decode(selectedSong!['singer']!)),
-            _buildStatusRow('状態', _getStateText(sessionProvider.state)),
-            _buildStatusRow('現在のピッチ', 
-                sessionProvider.currentPitch?.toStringAsFixed(2) ?? '-'),
-            _buildStatusRow('基準ピッチ数', '${sessionProvider.referencePitches.length}'),
-            _buildStatusRow('録音ピッチ数', '${sessionProvider.recordedPitches.length}'),
-            if (sessionProvider.errorMessage.isNotEmpty)
+    return GestureDetector(
+      onLongPress: () => _showDetailedDebugInfo(sessionProvider),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                'エラー: ${sessionProvider.errorMessage}',
-                style: const TextStyle(color: Colors.red),
+                'セッション状態',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-          ],
+              const SizedBox(height: 8),
+              _buildStatusRow('楽曲', selectedSong?['title'] ?? '-'),
+              if (selectedSong?['singer'] != null)
+                _buildStatusRow('歌手', SingerEncoder.decode(selectedSong!['singer']!)),
+              _buildStatusRow('状態', _getStateText(sessionProvider.state)),
+              _buildStatusRow('現在のピッチ', 
+                  sessionProvider.currentPitch?.toStringAsFixed(2) ?? '-'),
+              _buildStatusRow('基準ピッチ数', '${sessionProvider.referencePitches.length}'),
+              _buildStatusRow('録音ピッチ数', '${sessionProvider.recordedPitches.length}'),
+              if (sessionProvider.errorMessage.isNotEmpty)
+                Text(
+                  'エラー: ${sessionProvider.errorMessage}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  /// 詳細デバッグ情報表示（隠し機能）
+  void _showDetailedDebugInfo(KaraokeSessionProvider sessionProvider) {
+    final referencePitches = sessionProvider.referencePitches;
+    final recordedPitches = sessionProvider.recordedPitches;
+    
+    // 基準ピッチの統計
+    final validRefPitches = referencePitches.where((p) => p > 0).toList();
+    final refStats = validRefPitches.isNotEmpty ? {
+      'count': validRefPitches.length,
+      'min': validRefPitches.reduce(math.min),
+      'max': validRefPitches.reduce(math.max),
+      'avg': validRefPitches.reduce((a, b) => a + b) / validRefPitches.length,
+    } : null;
+    
+    // 録音ピッチの統計
+    final validRecPitches = recordedPitches.where((p) => p > 0).toList();
+    final recStats = validRecPitches.isNotEmpty ? {
+      'count': validRecPitches.length,
+      'min': validRecPitches.reduce(math.min),
+      'max': validRecPitches.reduce(math.max),
+      'avg': validRecPitches.reduce((a, b) => a + b) / validRecPitches.length,
+    } : null;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🔧 詳細デバッグ情報'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('📊 基準ピッチ統計', style: TextStyle(fontWeight: FontWeight.bold)),
+              if (refStats != null) ...[
+                Text('データ数: ${refStats['count']}'),
+                Text('最小: ${refStats['min']!.toStringAsFixed(1)}Hz'),
+                Text('最大: ${refStats['max']!.toStringAsFixed(1)}Hz'),
+                Text('平均: ${refStats['avg']!.toStringAsFixed(1)}Hz'),
+              ] else
+                const Text('データなし'),
+              
+              const SizedBox(height: 16),
+              const Text('🎤 録音ピッチ統計', style: TextStyle(fontWeight: FontWeight.bold)),
+              if (recStats != null) ...[
+                Text('データ数: ${recStats['count']}'),
+                Text('最小: ${recStats['min']!.toStringAsFixed(1)}Hz'),
+                Text('最大: ${recStats['max']!.toStringAsFixed(1)}Hz'),
+                Text('平均: ${recStats['avg']!.toStringAsFixed(1)}Hz'),
+              ] else
+                const Text('データなし'),
+              
+              const SizedBox(height: 16),
+              const Text('🔄 セッション詳細', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('状態: ${sessionProvider.state}'),
+              Text('録音中: ${sessionProvider.isRecording}'),
+              Text('現在ピッチ: ${sessionProvider.currentPitch?.toStringAsFixed(2) ?? 'null'}'),
+              if (sessionProvider.errorMessage.isNotEmpty)
+                Text('エラー: ${sessionProvider.errorMessage}', style: const TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
       ),
     );
   }

@@ -1,41 +1,25 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 /// MP3ファイルの音声処理を担当するサービスクラス
 class AudioProcessingService {
-  static const int defaultSampleRate = 16000;
+  static const int defaultSampleRate = 44100;  // PitchDetectionServiceと統一
   static const int defaultChannels = 1;
   static const int wavHeaderSize = 44;
 
-  /// MP3ファイルをPCMデータに変換
+  /// 【廃止】MP3ファイルをPCMデータに変換
   ///
+  /// MP3デコードは技術的に複雑なため、WAVファイルを使用してください
   /// [assetPath] 変換対象のMP3ファイルパス
-  /// 戻り値: PCMデータ（Int16List）
-  /// 
-  /// 注意: 実際のMP3デコードには専用のネイティブプラグインが必要です。
-  /// 現在の実装では、just_audioライブラリを使用した変換を想定した
-  /// 標準的なPCMデータを生成しています。
+  /// 戻り値: エラーを投げる
+  @Deprecated('MP3サポートを廃止しました。WAVファイルを使用してください')
   static Future<Int16List> convertMp3ToPcm(String assetPath) async {
-    try {
-      // アセットファイルの存在確認
-      final bytes = await rootBundle.load(assetPath);
-
-      // MP3ファイルのヘッダー情報を簡易解析
-      final mp3Data = bytes.buffer.asUint8List();
-      
-      // MP3ファイルの概算サイズから適切なPCMデータサイズを計算
-      // 一般的な圧縮比（約1:10）を考慮
-      final estimatedPcmSize = _estimatePcmSizeFromMp3(mp3Data.length);
-      
-      // より現実的なオーディオパターンを生成
-      final pcmData = _generateRealisticAudioPattern(estimatedPcmSize);
-
-      return pcmData;
-    } catch (e) {
-      throw AudioProcessingException('MP3変換に失敗しました: $e');
-    }
+    throw AudioProcessingException(
+      'MP3サポートは廃止されました。WAVファイル（$assetPath.wavなど）を使用してください。'
+    );
   }
 
   /// WAVファイルからPCMデータを抽出
@@ -71,12 +55,16 @@ class AudioProcessingService {
   /// 戻り値: PCMデータ（Int16List）
   static Future<Int16List> extractPcmFromWavFile(String filePath) async {
     try {
+      debugPrint('=== WAVファイル処理デバッグ ===');
+      debugPrint('WAVファイル: $filePath');
+      
       final file = File(filePath);
       if (!await file.exists()) {
         throw AudioProcessingException('ファイルが存在しません: $filePath');
       }
 
       final wavData = await file.readAsBytes();
+      debugPrint('WAVファイルサイズ: ${wavData.length} バイト');
       
       // デバッグ用：ファイルの詳細情報を記録
       // ファイルサイズ: ${wavData.length} バイト
@@ -89,15 +77,23 @@ class AudioProcessingService {
 
       // WAVヘッダーの簡易チェック
       if (!_isValidWavHeader(wavData)) {
+        debugPrint('WAVヘッダーが無効 - RAW PCMデータとして処理を試行');
         // Record パッケージがRAW PCMデータを出力した場合のフォールバック
         // RAW PCMデータとして処理を試行
         return _processRawPcmData(wavData);
       }
 
+      debugPrint('有効なWAVヘッダーを検出');
       // WAVヘッダー（44バイト）をスキップしてPCM部分を取得
       final pcmData = wavData.sublist(wavHeaderSize);
-      return Int16List.view(pcmData.buffer, pcmData.offsetInBytes, pcmData.lengthInBytes ~/ 2);
+      final result = Int16List.view(pcmData.buffer, pcmData.offsetInBytes, pcmData.lengthInBytes ~/ 2);
+      
+      debugPrint('PCMデータサイズ: ${result.length} サンプル');
+      debugPrint('=== WAVファイル処理デバッグ終了 ===');
+      
+      return result;
     } catch (e) {
+      debugPrint('WAVファイル処理エラー: $e');
       throw AudioProcessingException('WAVファイル処理に失敗しました: $e');
     }
   }  /// WAVヘッダーの簡易検証
@@ -121,20 +117,66 @@ class AudioProcessingService {
   /// 戻り値: 処理されたPCMデータ
   static Int16List _processRawPcmData(Uint8List rawData) {
     try {
+      debugPrint('=== RAW PCMデータ処理デバッグ ===');
+      debugPrint('RAWデータサイズ: ${rawData.length} バイト');
+      
       // RAW PCMデータの場合、直接16bitサンプルとして解釈
       if (rawData.length % 2 != 0) {
         // 奇数バイトの場合、最後の1バイトを削除
         rawData = rawData.sublist(0, rawData.length - 1);
+        debugPrint('奇数バイトを修正: ${rawData.length} バイト');
       }
       
       // RAW PCMデータとして処理: ${rawData.length} バイト → ${rawData.length ~/ 2} サンプル
-      return Int16List.view(rawData.buffer, rawData.offsetInBytes, rawData.lengthInBytes ~/ 2);
+      final result = Int16List.view(rawData.buffer, rawData.offsetInBytes, rawData.lengthInBytes ~/ 2);
+      debugPrint('RAW PCMサンプル数: ${result.length}');
+      
+      // 無音期間をスキップして実際の音声データを探す
+      int firstNonZeroIndex = _findFirstNonZeroSample(result);
+      if (firstNonZeroIndex > 0) {
+        debugPrint('無音期間を検出: 最初の${firstNonZeroIndex}サンプルをスキップ');
+        final trimmed = result.sublist(firstNonZeroIndex);
+        debugPrint('スキップ後のサンプル数: ${trimmed.length}');
+        
+        // 最初の10サンプルを表示（スキップ後）
+        debugPrint('RAW PCMサンプル（スキップ後の最初の10個）:');
+        final sampleData = trimmed.take(10).toList();
+        for (int i = 0; i < sampleData.length; i++) {
+          debugPrint('  [$i]: ${sampleData[i]}');
+        }
+        
+        debugPrint('=== RAW PCMデータ処理デバッグ終了 ===');
+        return Int16List.fromList(trimmed);
+      }
+      
+      // 最初の10サンプルを表示
+      debugPrint('RAW PCMサンプル（最初の10個）:');
+      final sampleData = result.take(10).toList();
+      for (int i = 0; i < sampleData.length; i++) {
+        debugPrint('  [$i]: ${sampleData[i]}');
+      }
+      
+      debugPrint('=== RAW PCMデータ処理デバッグ終了 ===');
+      return result;
     } catch (e) {
-      // RAW PCMデータ処理エラー: $e
-      // 最後の手段として、シミュレーションデータを生成
-      final sampleCount = rawData.length ~/ 2;
-      return _generateRealisticAudioPattern(sampleCount);
+      debugPrint('RAW PCMデータ処理エラー: $e');
+      // シミュレーションデータは使用しません - 実際のエラーを報告
+      throw AudioProcessingException('WAVファイルの処理に失敗しました: $e');
     }
+  }
+
+  /// 最初の非ゼロサンプルのインデックスを見つける
+  static int _findFirstNonZeroSample(Int16List samples) {
+    const threshold = 100; // 小さなノイズを無視するための閾値
+    
+    for (int i = 0; i < samples.length; i++) {
+      if (samples[i].abs() > threshold) {
+        // 音声開始の少し前から開始（バッファとして）
+        return math.max(0, i - 1000); // 約22ms前から（44100Hz時）
+      }
+    }
+    
+    return 0; // 非ゼロサンプルが見つからない場合
   }
 
   /// PCMデータを指定サイズのチャンクに分割
@@ -169,88 +211,12 @@ class AudioProcessingService {
     return chunks;
   }
 
-  /// MP3ファイルサイズからPCMデータサイズを推定
-  /// 
-  /// [mp3Size] MP3ファイルのサイズ（バイト）
-  /// 戻り値: 推定されるPCMデータサイズ（サンプル数）
-  static int _estimatePcmSizeFromMp3(int mp3Size) {
-    // MP3の一般的な圧縮比（約1:10）を考慮
-    // 16bit PCMの場合、1サンプル = 2バイト
-    return (mp3Size * 10 / 2).round();
-  }
-
-  /// より現実的なオーディオパターンを生成
-  /// 
-  /// [sampleCount] 生成するサンプル数
-  /// 戻り値: 生成されたPCMデータ
-  static Int16List _generateRealisticAudioPattern(int sampleCount) {
-    final pcmData = Int16List(sampleCount);
-    
-    // 歌唱データに近い複雑な波形を生成
-    // 基本周波数と倍音を組み合わせた音声パターン
-    final fundamentalFrequencies = [146.83, 164.81, 174.61, 196.00, 220.00, 246.94]; // D3-B3
-    final harmonics = [1.0, 0.5, 0.25, 0.125]; // 倍音の強度
-    
-    for (int i = 0; i < sampleCount; i++) {
-      double sample = 0.0;
-      final timeProgress = i / sampleCount;
-      
-      // 音量の包絡線（エンベロープ）を適用
-      final envelope = _calculateEnvelope(timeProgress);
-      
-      // 基本周波数の選択（時間に応じて変化）
-      final frequencyIndex = (timeProgress * fundamentalFrequencies.length).floor() % fundamentalFrequencies.length;
-      final baseFrequency = fundamentalFrequencies[frequencyIndex];
-      
-      // 倍音成分を加算
-      for (int h = 0; h < harmonics.length; h++) {
-        final harmonic = harmonics[h];
-        final frequency = baseFrequency * (h + 1);
-        
-        // 位相変調を加えてより自然な音に
-        final phaseModulation = 0.1 * math.sin(2 * math.pi * 5 * i / defaultSampleRate);
-        sample += harmonic * envelope * math.sin(
-          2 * math.pi * frequency * i / defaultSampleRate + phaseModulation
-        );
-      }
-      
-      // 軽微なノイズを追加（現実的な録音環境を模擬）
-      final noise = (math.Random().nextDouble() - 0.5) * 0.001;
-      sample += noise;
-      
-      // 16bit範囲にクリップ
-      pcmData[i] = (sample * 16383).round().clamp(-32767, 32767);
-    }
-    
-    return pcmData;
-  }
-
-  /// オーディオエンベロープ（音量包絡線）を計算
-  /// 
-  /// [timeProgress] 0.0-1.0の時間進行
-  /// 戻り値: 音量係数
-  static double _calculateEnvelope(double timeProgress) {
-    // Attack, Decay, Sustain, Release風の包絡線
-    if (timeProgress < 0.1) {
-      // Attack: 最初10%で音量が上がる
-      return timeProgress / 0.1;
-    } else if (timeProgress < 0.2) {
-      // Decay: 次の10%で少し下がる
-      return 1.0 - (timeProgress - 0.1) / 0.1 * 0.2;
-    } else if (timeProgress < 0.8) {
-      // Sustain: 中間60%で維持
-      return 0.8;
-    } else {
-      // Release: 最後20%で音量が下がる
-      return 0.8 * (1.0 - (timeProgress - 0.8) / 0.2);
-    }
-  }
-
-
-
   /// PCMデータの音量を正規化
   static Int16List normalizePcmData(Int16List pcmData) {
     if (pcmData.isEmpty) return pcmData;
+
+    debugPrint('=== PCM正規化デバッグ ===');
+    debugPrint('正規化前データサイズ: ${pcmData.length} サンプル');
 
     // 最大絶対値を取得
     int maxValue = 0;
@@ -258,16 +224,30 @@ class AudioProcessingService {
       maxValue = math.max(maxValue, sample.abs());
     }
 
-    if (maxValue == 0) return pcmData;
+    debugPrint('最大絶対値: $maxValue');
+
+    if (maxValue == 0) {
+      debugPrint('無音データのため正規化をスキップ');
+      return pcmData;
+    }
 
     // 正規化係数を計算
     final normalizationFactor = 32767.0 / maxValue;
+    debugPrint('正規化係数: ${normalizationFactor.toStringAsFixed(3)}');
 
     // 正規化されたデータを生成
     final normalized = Int16List(pcmData.length);
     for (int i = 0; i < pcmData.length; i++) {
       normalized[i] = (pcmData[i] * normalizationFactor).round();
     }
+
+    // 正規化後の統計情報
+    int newMaxValue = 0;
+    for (final sample in normalized) {
+      newMaxValue = math.max(newMaxValue, sample.abs());
+    }
+    debugPrint('正規化後最大絶対値: $newMaxValue');
+    debugPrint('=== PCM正規化デバッグ終了 ===');
 
     return normalized;
   }

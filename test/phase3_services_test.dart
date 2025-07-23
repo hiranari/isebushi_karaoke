@@ -90,7 +90,7 @@ void main() {
       );
 
       expect(songResult.scoreBreakdown.pitchAccuracyScore, equals(0.0));
-      expect(songResult.scoreBreakdown.stabilityScore, equals(100.0)); // 実際のデフォルト値に調整
+      expect(songResult.scoreBreakdown.stabilityScore, equals(0.0)); // 修正: 音が出ていない場合は0.0
       expect(songResult.scoreBreakdown.timingScore, equals(0.0));
     });
 

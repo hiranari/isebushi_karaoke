@@ -146,11 +146,25 @@ class ScoringService {
 
   /// 安定性の分析
   static StabilityAnalysis _analyzeStability(List<double> recordedPitches) {
-    if (recordedPitches.length < 2) {
+    // 有効ピッチのフィルタリング
+    final validPitches = recordedPitches.where((p) => p > 0).toList();
+    
+    if (validPitches.isEmpty) {
       return const StabilityAnalysis(
         averageVariation: 0.0,
         maxVariation: 0.0,
         stableNotes: 0,
+        unstableNotes: 0,
+        variationHistory: [],
+      );
+    }
+    
+    // 単一ピッチの場合は完全に安定
+    if (validPitches.length == 1) {
+      return const StabilityAnalysis(
+        averageVariation: 0.0,
+        maxVariation: 0.0,
+        stableNotes: 1,
         unstableNotes: 0,
         variationHistory: [],
       );
@@ -161,10 +175,10 @@ class ScoringService {
     int unstableNotes = 0;
     
     // 隣接するピッチ間の変動を分析
-    for (int i = 1; i < recordedPitches.length; i++) {
+    for (int i = 1; i < validPitches.length; i++) {
       final variation = _calculateCentsDeviation(
-        recordedPitches[i - 1],
-        recordedPitches[i],
+        validPitches[i - 1],
+        validPitches[i],
       ).abs();
       
       variations.add(variation);
@@ -255,22 +269,31 @@ class ScoringService {
   static double _calculatePitchAccuracyScore(PitchAnalysis analysis) {
     if (analysis.totalNotes == 0) return 0.0;
     
-    // 基本正確性スコア
-    final accuracyScore = analysis.accuracyRatio * 100;
+    // 基本正確性スコア（正確な音程の割合）
+    final baseAccuracyScore = analysis.accuracyRatio * 60; // 最大60点に調整
     
-    // 平均ずれによる減点
-    final deviationPenalty = math.min(
-      analysis.averageDeviation / pitchAccuracyThresholdCents * 20,
-      20.0,
-    );
+    // 平均ずれに基づくスコア（指数関数的に減衰）
+    final avgDeviationAbs = analysis.averageDeviation.abs();
+    final deviationScore = math.max(0.0, 40.0 * math.exp(-avgDeviationAbs / 50.0)); // 50セント以上で急激に減点
     
-    return math.max(0.0, accuracyScore - deviationPenalty);
+    // 極端なずれ（1オクターブ以上）に対する厳しいペナルティ
+    final maxDeviationAbs = analysis.maxDeviation.abs();
+    double severePenalty = 0.0;
+    if (maxDeviationAbs >= 1200) { // 1オクターブ以上のずれ
+      severePenalty = 80.0; // 大幅減点
+    } else if (maxDeviationAbs >= 600) { // 半オクターブ以上のずれ
+      severePenalty = 40.0;
+    } else if (maxDeviationAbs >= 200) { // 大きなずれ
+      severePenalty = 20.0;
+    }
+    
+    return math.max(0.0, math.min(100.0, baseAccuracyScore + deviationScore - severePenalty));
   }
 
   /// 安定性スコアの計算（0-100）
   static double _calculateStabilityScore(StabilityAnalysis analysis) {
     final totalNotes = analysis.stableNotes + analysis.unstableNotes;
-    if (totalNotes == 0) return 100.0;
+    if (totalNotes == 0) return 0.0;  // 音が出ていない場合は0点
     
     // 基本安定性スコア
     final stabilityScore = analysis.stabilityRatio * 100;
@@ -289,22 +312,22 @@ class ScoringService {
     final totalNotes = analysis.earlyNotes + analysis.lateNotes + analysis.onTimeNotes;
     if (totalNotes == 0) return 0.0;
     
-    // 正時性の基本スコア
-    final accuracyScore = analysis.onTimeNotes / totalNotes * 100;
+    // 正時性の基本スコア（正確なタイミングの割合）
+    final baseTimingScore = analysis.onTimeNotes / totalNotes * 50; // 最大50点に調整
     
-    // 平均遅延による減点
-    final latencyPenalty = math.min(
-      analysis.averageLatency.abs() / timingAccuracyThresholdSec * 25,
-      25.0,
-    );
+    // 遅延の少なさに基づく追加スコア
+    final latencyScore = math.max(0.0, 30.0 - (analysis.averageLatency.abs() / timingAccuracyThresholdSec * 30));
     
-    // 最大遅延による追加減点
+    // 最大遅延による減点（極端な遅延がある場合の減点）
     final maxLatencyPenalty = math.min(
-      analysis.maxLatency.abs() / (timingAccuracyThresholdSec * 2) * 10,
-      10.0,
+      analysis.maxLatency.abs() / (timingAccuracyThresholdSec * 2) * 15,
+      15.0,
     );
     
-    return math.max(0.0, accuracyScore - latencyPenalty - maxLatencyPenalty);
+    // 早い・遅いノートのバランスによる加点（バランスが良いほど良い）
+    final balanceBonus = totalNotes > 1 ? math.max(0.0, 20.0 - (analysis.earlyNotes - analysis.lateNotes).abs() / totalNotes * 20) : 0.0;
+    
+    return math.max(0.0, math.min(100.0, baseTimingScore + latencyScore + balanceBonus - maxLatencyPenalty));
   }
 
   /// 実際のタイムスタンプを計算

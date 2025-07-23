@@ -5,6 +5,7 @@ import 'dart:math' as math;
 /// 
 /// 録音中のピッチと基準ピッチをリアルタイムで表示します。
 /// 単一責任の原則に従い、ピッチの視覚化のみを担当します。
+/// タップで基準ピッチの詳細情報を表示する隠し機能付き。
 class RealtimePitchVisualizer extends StatelessWidget {
   final double? currentPitch;
   final List<double> referencePitches;
@@ -23,24 +24,172 @@ class RealtimePitchVisualizer extends StatelessWidget {
     this.height = 200,
   });
 
+  /// 基準ピッチの統計情報を計算
+  Map<String, dynamic> _calculatePitchStats() {
+    final validPitches = referencePitches.where((p) => p > 0).toList();
+    
+    if (validPitches.isEmpty) {
+      return {
+        'count': 0,
+        'min': 0.0,
+        'max': 0.0,
+        'average': 0.0,
+        'range': '範囲なし',
+      };
+    }
+
+    validPitches.sort();
+    final min = validPitches.first;
+    final max = validPitches.last;
+    final average = validPitches.reduce((a, b) => a + b) / validPitches.length;
+    
+    // 音階名を推定（A4=440Hzを基準）
+    String getNoteRange() {
+      final minNote = _frequencyToNote(min);
+      final maxNote = _frequencyToNote(max);
+      return '$minNote - $maxNote';
+    }
+
+    return {
+      'count': validPitches.length,
+      'min': min,
+      'max': max,
+      'average': average,
+      'range': getNoteRange(),
+    };
+  }
+
+  /// 周波数を音階名に変換（簡易版）
+  String _frequencyToNote(double frequency) {
+    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const a4 = 440.0;
+    
+    if (frequency <= 0) return '---';
+    
+    final semitonesFromA4 = 12 * (math.log(frequency / a4) / math.ln2);
+    final octave = 4 + (semitonesFromA4 / 12).floor();
+    final noteIndex = ((semitonesFromA4 % 12) + 9).round() % 12; // A=9なので調整
+    
+    return '${notes[noteIndex]}$octave';
+  }
+
+  /// タップ時の詳細情報表示
+  void _showPitchDetails(BuildContext context) {
+    final stats = _calculatePitchStats();
+    
+    final message = '''
+基準ピッチ詳細情報 🎵
+━━━━━━━━━━━━━━━━
+📊 データ数: ${stats['count']}個
+📈 最高: ${stats['max'].toStringAsFixed(1)}Hz
+📉 最低: ${stats['min'].toStringAsFixed(1)}Hz
+📐 平均: ${stats['average'].toStringAsFixed(1)}Hz
+🎼 音域: ${stats['range']}
+
+💡 ヒント: この情報で基準ピッチが正しく抽出されているか確認できます
+💡 ダブルタップで録音ピッチの詳細も表示''';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 6),
+        backgroundColor: Colors.blue[800],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+
+  /// 録音ピッチの詳細情報を表示
+  void _showRecordedPitchDetails(BuildContext context) {
+    final validPitches = recordedPitches.where((p) => p > 0).toList();
+    
+    if (validPitches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('録音ピッチデータがまだありません'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    validPitches.sort();
+    final min = validPitches.first;
+    final max = validPitches.last;
+    final average = validPitches.reduce((a, b) => a + b) / validPitches.length;
+    
+    final message = '''
+録音ピッチ詳細情報 🎤
+━━━━━━━━━━━━━━━━
+📊 録音数: ${validPitches.length}個
+📈 最高: ${max.toStringAsFixed(1)}Hz (${_frequencyToNote(max)})
+📉 最低: ${min.toStringAsFixed(1)}Hz (${_frequencyToNote(min)})
+📐 平均: ${average.toStringAsFixed(1)}Hz (${_frequencyToNote(average)})
+🎼 音域: ${_frequencyToNote(min)} - ${_frequencyToNote(max)}
+
+現在: ${currentPitch?.toStringAsFixed(1) ?? '--'}Hz''';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 6),
+        backgroundColor: Colors.red[800],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: CustomPaint(
-        painter: PitchVisualizerPainter(
-          currentPitch: currentPitch,
-          referencePitches: referencePitches,
-          recordedPitches: recordedPitches,
-          isRecording: isRecording,
+    return GestureDetector(
+      onTap: () => _showPitchDetails(context),
+      onDoubleTap: () => _showRecordedPitchDetails(context),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+          // 微妙なシャドウでタップ可能であることを示唆
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withValues(alpha: 0.2),
+              spreadRadius: 1,
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
-        size: Size(width, height),
+        child: Stack(
+          children: [
+            CustomPaint(
+              painter: PitchVisualizerPainter(
+                currentPitch: currentPitch,
+                referencePitches: referencePitches,
+                recordedPitches: recordedPitches,
+                isRecording: isRecording,
+              ),
+              size: Size(width, height),
+            ),
+            // 右下に小さなアイコンでタップ可能を示唆
+            Positioned(
+              bottom: 4,
+              right: 8,
+              child: Icon(
+                Icons.info_outline,
+                size: 12,
+                color: Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -54,8 +203,8 @@ class PitchVisualizerPainter extends CustomPainter {
   final bool isRecording;
 
   // 表示設定
-  static const double minPitch = 100.0;  // 最低表示ピッチ(Hz)
-  static const double maxPitch = 500.0;  // 最高表示ピッチ(Hz)
+  static const double minPitch = 80.0;   // 最低表示ピッチ(Hz) - 人間の歌声範囲に拡張
+  static const double maxPitch = 800.0;  // 最高表示ピッチ(Hz) - 500Hz制限を解除
   static const int maxDisplayPoints = 100; // 最大表示ポイント数
 
   PitchVisualizerPainter({
@@ -213,6 +362,24 @@ class PitchVisualizerPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     
     canvas.drawCircle(Offset(x, y), 10, outerPaint);
+    
+    // 現在のピッチ値をテキストで表示
+    final pitchTextPainter = TextPainter(
+      text: TextSpan(
+        text: '${currentPitch!.round()}Hz',
+        style: const TextStyle(
+          color: Colors.green,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    pitchTextPainter.layout();
+    pitchTextPainter.paint(
+      canvas, 
+      Offset(size.width - pitchTextPainter.width - 10, 10)
+    );
   }
 
   /// ラベルの描画
