@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'song_select_page.dart';
-import 'pages/karaoke_page.dart';
-import 'providers/karaoke_session_provider.dart';
+import 'presentation/pages/karaoke_page.dart';
+import 'application/providers/karaoke_session_provider.dart';
+import 'infrastructure/factories/service_locator.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  // Initialize service locator with all dependencies
+  ServiceLocator().initialize();
+  
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
