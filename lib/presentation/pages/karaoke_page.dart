@@ -438,6 +438,7 @@ class _KaraokePageState extends State<KaraokePage> {
       debugPrint('録音ファイルサイズ: $fileSize バイト');
       
       // 録音ファイルからピッチを抽出（ファイルシステム対応、基準ピッチ使用）
+      if (!mounted) return;
       final sessionProvider = context.read<KaraokeSessionProvider>();
       var analysisResult = await _pitchDetectionService.extractPitchFromAudio(
         sourcePath: recordingPath,

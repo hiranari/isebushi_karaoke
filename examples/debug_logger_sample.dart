@@ -3,6 +3,8 @@
 /// Debug Logger使用例
 /// 
 /// このファイルは、debug_logger.dartの使用方法を示すサンプルコードです。
+library;
+
 import 'package:isebushi_karaoke/core/utils/debug_logger.dart';
 
 void main() {
