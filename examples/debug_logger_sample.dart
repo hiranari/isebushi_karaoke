@@ -1,8 +1,11 @@
 // ignore_for_file: avoid_print
 
-// DebugLoggerの使用例とテストケース
+/// Debug Logger使用例
+/// 
+/// このファイルは、debug_logger.dartの使用方法を示すサンプルコードです。
+library;
 
-import 'package:isebushi_karaoke/utils/debug_logger.dart';
+import 'package:isebushi_karaoke/core/utils/debug_logger.dart';
 
 void main() {
   // エラーログのサンプル

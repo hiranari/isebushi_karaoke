@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/pitch_detection_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/pitch_detection_service.dart';
 import 'dart:typed_data';
 import 'dart:math' as math;
 

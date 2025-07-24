@@ -1,38 +1,37 @@
 [
     {
         "title": "上がり馬場",
-        "audioFile": "assets/sounds/AgariBamba.mp3",
-        "pitchFile": "assets/pitch/kiku_pitches.json",
+        "audioFile": "assets/sounds/AgariBamba.wav",
         "singer": "5bKh5bWc5ZKM576p"
     },
     {
         "title": "十五の松",
-        "audioFile": "assets/sounds/JugoNoMatsu.mp3",
-        "pitchFile": "assets/pitch/JugoNoMatsu.json",
+        "audioFile": "assets/sounds/JugoNoMatsu.wav",
         "singer": "6KW/5p2R5LiA55S3"
     },
     {
         "title": "十五の菊",
-        "audioFile": "assets/sounds/JugoNoKiku.mp3",
-        "pitchFile": "assets/pitch/kiku_pitches.json",
+        "audioFile": "assets/sounds/JugoNoKiku.wav",
         "singer": "6KW/5p2R5LiA55S3"
     },
     {
         "title": "松の木陰",
-        "audioFile": "assets/sounds/MatsuNoKokage.mp3",
-        "pitchFile": "assets/pitch/kiku_pitches.json",
+        "audioFile": "assets/sounds/MatsuNoKokage.wav",
         "singer": "5bKh5bWc5ZKM576p"
     },
     {
         "title": "豆豆づくし",
-        "audioFile": "assets/sounds/MamemameZukushi.mp3",
-        "pitchFile": "assets/pitch/kiku_pitches.json",
+        "audioFile": "assets/sounds/MamemameZukushi.wav",
         "singer": "5bKh5bWc5ZKM576p"
     },
     {
         "title": "正月二日",
-        "audioFile": "assets/sounds/ShogatsuFutsuka.mp3",
-        "pitchFile": "assets/pitch/kiku_pitches.json",
+        "audioFile": "assets/sounds/ShogatsuFutsuka.wav",
         "singer": "5bKh5bWc5ZKM576p"
+    },
+    {
+        "title": "テスト",
+        "audioFile": "assets/sounds/Test.wav",
+        "singer": "5Y6f55Sw5ouT5Lmf"
     }
 ]

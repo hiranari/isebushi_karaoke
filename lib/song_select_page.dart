@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'utils/singer_encoder.dart';
+import 'core/utils/singer_encoder.dart';
 
 class SongSelectPage extends StatefulWidget {
   const SongSelectPage({super.key});

@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/scoring_service.dart';
-import 'package:isebushi_karaoke/services/analysis_service.dart';
-import 'package:isebushi_karaoke/services/feedback_service.dart';
-import 'package:isebushi_karaoke/models/comprehensive_score.dart';
+import 'package:isebushi_karaoke/infrastructure/services/scoring_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/analysis_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/feedback_service.dart';
+import 'package:isebushi_karaoke/domain/models/comprehensive_score.dart';
 
 void main() {
   group('Phase 3 Services Tests', () {
@@ -90,7 +90,7 @@ void main() {
       );
 
       expect(songResult.scoreBreakdown.pitchAccuracyScore, equals(0.0));
-      expect(songResult.scoreBreakdown.stabilityScore, equals(100.0)); // 実際のデフォルト値に調整
+      expect(songResult.scoreBreakdown.stabilityScore, equals(0.0)); // 修正: 音が出ていない場合は0.0
       expect(songResult.scoreBreakdown.timingScore, equals(0.0));
     });
 

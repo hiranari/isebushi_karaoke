@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/widgets/overall_score_widget.dart';
-import 'package:isebushi_karaoke/models/song_result.dart';
+import 'package:isebushi_karaoke/presentation/widgets/results/overall_score_widget.dart';
+import 'package:isebushi_karaoke/domain/models/song_result.dart';
 
 void main() {
   group('OverallScoreWidget Tests', () {
@@ -10,7 +10,7 @@ void main() {
         songTitle: 'テスト楽曲',
         timestamp: DateTime.now(),
         totalScore: 82.0,
-        scoreBreakdown: const ScoreBreakdown(
+        scoreBreakdown: ScoreBreakdown(
           pitchAccuracyScore: 80.0,
           stabilityScore: 85.0,
           timingScore: 78.0,

@@ -1,33 +1,33 @@
-# Phase 2 Pitch Comparison System - Test Guide
+# フェーズ2 ピッチ比較システム - テストガイド
 
-## Overview
-This guide explains how to test the newly implemented Phase 2 high-precision pitch comparison system.
+## 概要
+このガイドでは、新しく実装されたフェーズ2高精度ピッチ比較システムのテスト方法を説明します。
 
-## Features Implemented
+## 実装された機能
 
 ### 1. PitchComparisonService
-- **DTW Algorithm**: Dynamic Time Warping for optimal time alignment
-- **Cent Calculation**: Musical cent-based pitch difference (1200 * log2(f1/f2))
-- **Pitch Stability**: Variance analysis with segment scoring
-- **Vibrato Detection**: Rate, depth, and regularity analysis
-- **Timing Accuracy**: Cross-correlation based timing evaluation
+- **DTWアルゴリズム**: 最適時間アライメントのための動的時間ワーピング
+- **セント計算**: 音楽的セント単位のピッチ差分（1200 * log2(f1/f2)）
+- **ピッチ安定性**: セグメントスコアリングによる分散分析
+- **ビブラート検出**: レート、深度、規則性の分析
+- **タイミング精度**: 相互相関ベースのタイミング評価
 
-### 2. New UI Elements
-- **精密ピッチ比較** button appears after recording
-- Comprehensive results display with multiple score categories
-- Vibrato detection indicator with musical note icons
-- Expandable detailed statistics section
+### 2. 新しいUI要素
+- 録音後に表示される**精密ピッチ比較**ボタン
+- 複数スコアカテゴリによる包括的結果表示
+- 音符アイコン付きビブラート検出インジケーター
+- 展開可能な詳細統計セクション
 
-## Manual Testing Steps
+## 手動テスト手順
 
-### 1. Basic Functionality Test
-1. Launch the app and select a song
-2. Wait for pitch data analysis to complete
-3. Tap "録音開始" to start recording
-4. Sing or hum for a few seconds
-5. Tap "録音停止" to stop recording
-6. Tap "精密ピッチ比較" button
-7. Verify detailed results appear
+### 1. 基本機能テスト
+1. アプリを起動し楽曲を選択
+2. ピッチデータ分析の完了を待機
+3. 「録音開始」をタップして録音開始
+4. 数秒間歌うまたはハミング
+5. 「録音停止」をタップして録音停止
+6. 「精密ピッチ比較」ボタンをタップ
+7. 詳細結果が表示されることを確認
 
 ### 2. Expected Results Display
 The detailed comparison should show:

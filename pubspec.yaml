@@ -28,7 +28,6 @@ flutter:
     - assets/icon/icon.png
     - assets/splash/splash.png
     - assets/sounds/
-    - assets/pitch/
     - assets/data/song.json
 
 flutter_icons:

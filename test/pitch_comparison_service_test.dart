@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/services/pitch_comparison_service.dart';
-import 'package:isebushi_karaoke/models/pitch_comparison_result.dart';
+import 'package:isebushi_karaoke/infrastructure/services/pitch_comparison_service.dart';
+import 'package:isebushi_karaoke/domain/models/pitch_comparison_result.dart';
 
 void main() {
   group('PitchComparisonService Tests', () {
