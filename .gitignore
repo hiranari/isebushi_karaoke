@@ -50,3 +50,7 @@ flutter.tar.xz
 
 # Coverage files
 coverage/
+
+# WAV file tool backups
+*.wav.backup.*
+assets/sounds/*.backup.*

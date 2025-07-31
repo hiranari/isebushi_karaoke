@@ -610,6 +610,226 @@ class PitchComparisonService {
       analyzedAt: DateTime.now(),
     );
   }
+
+  // === リアルタイムスコア計算機能 (Phase 3) ===
+
+  /// リアルタイムピッチスコア計算
+  /// 単一ピッチペアの即座の比較とスコア計算
+  static RealtimeScoreResult calculateRealtimeScore(
+    double detectedPitch,
+    double referencePitch,
+  ) {
+    if (detectedPitch <= 0 || referencePitch <= 0) {
+      return RealtimeScoreResult.invalid();
+    }
+
+    final centsDiff = _calculateCentsDifference(detectedPitch, referencePitch);
+    final score = _calculateScoreFromCents(centsDiff.abs());
+    final accuracy = _getAccuracyLevel(centsDiff.abs());
+
+    return RealtimeScoreResult(
+      detectedPitch: detectedPitch,
+      referencePitch: referencePitch,
+      centsDifference: centsDiff,
+      score: score,
+      accuracy: accuracy,
+      isValid: true,
+    );
+  }
+
+  /// 複数フレームの累積スコア計算
+  static CumulativeScoreResult calculateCumulativeScore(
+    List<RealtimeScoreResult> scoreHistory,
+    {int maxHistoryLength = 100}
+  ) {
+    final validScores = scoreHistory.where((s) => s.isValid).toList();
+    if (validScores.isEmpty) {
+      return CumulativeScoreResult.empty();
+    }
+
+    // 最近のスコアに重みを付けて平均計算
+    final weightedScores = <double>[];
+    final weights = <double>[];
+    
+    for (int i = 0; i < validScores.length; i++) {
+      final weight = _getTimeWeight(i, validScores.length);
+      weightedScores.add(validScores[i].score * weight);
+      weights.add(weight);
+    }
+
+    final totalWeight = weights.fold(0.0, (a, b) => a + b);
+    final averageScore = totalWeight > 0 
+        ? weightedScores.fold(0.0, (a, b) => a + b) / totalWeight
+        : 0.0;
+
+    final maxScore = validScores.map((s) => s.score).reduce(math.max);
+    final minScore = validScores.map((s) => s.score).reduce(math.min);
+    
+    // 安定性計算
+    final recentScores = validScores.take(20).map((s) => s.score).toList();
+    final stability = _calculateScoreStability(recentScores);
+
+    return CumulativeScoreResult(
+      averageScore: averageScore,
+      maxScore: maxScore,
+      minScore: minScore,
+      validCount: validScores.length,
+      totalCount: scoreHistory.length,
+      stability: stability,
+      trend: _calculateScoreTrend(validScores),
+    );
+  }
+
+  /// セント差からスコアを計算
+  static double _calculateScoreFromCents(double centsDiff) {
+    if (centsDiff <= 10.0) return 100.0; // Perfect
+    if (centsDiff <= 25.0) return 100.0 - (centsDiff - 10.0) * 1.0; // 100->85
+    if (centsDiff <= 50.0) return 85.0 - (centsDiff - 25.0) * 0.6; // 85->70
+    if (centsDiff <= 100.0) return 70.0 - (centsDiff - 50.0) * 0.6; // 70->40
+    return math.max(0.0, 40.0 - (centsDiff - 100.0) * 0.4); // 40->0
+  }
+
+  /// 正確性レベルを判定
+  static ScoreAccuracy _getAccuracyLevel(double centsDiff) {
+    if (centsDiff <= 10.0) return ScoreAccuracy.perfect;
+    if (centsDiff <= 25.0) return ScoreAccuracy.excellent;
+    if (centsDiff <= 50.0) return ScoreAccuracy.good;
+    if (centsDiff <= 100.0) return ScoreAccuracy.fair;
+    return ScoreAccuracy.poor;
+  }
+
+  /// 時間重みを計算（最近のデータほど重要）
+  static double _getTimeWeight(int index, int totalLength) {
+    final normalizedIndex = index / math.max(1, totalLength - 1);
+    return 0.5 + 0.5 * normalizedIndex; // 0.5 to 1.0
+  }
+
+  /// スコアの安定性を計算
+  static double _calculateScoreStability(List<double> scores) {
+    if (scores.length < 3) return 0.0;
+    
+    final average = scores.reduce((a, b) => a + b) / scores.length;
+    final variance = scores
+        .map((s) => math.pow(s - average, 2))
+        .reduce((a, b) => a + b) / scores.length;
+    final stdDev = math.sqrt(variance);
+    
+    // 標準偏差が小さいほど安定性が高い
+    return math.max(0.0, 100.0 - stdDev * 2.0);
+  }
+
+  /// スコアトレンドを計算
+  static ScoreTrend _calculateScoreTrend(List<RealtimeScoreResult> scores) {
+    if (scores.length < 10) return ScoreTrend.stable;
+    
+    final recentStartIndex = math.max(0, scores.length - 10);
+    final recent = scores.skip(recentStartIndex).map((s) => s.score).toList();
+    final olderStartIndex = math.max(0, scores.length - 20);
+    final older = scores.skip(olderStartIndex)
+                      .take(10).map((s) => s.score).toList();
+    
+    final recentAvg = recent.reduce((a, b) => a + b) / recent.length;
+    final olderAvg = older.reduce((a, b) => a + b) / older.length;
+    
+    final diff = recentAvg - olderAvg;
+    
+    if (diff > 5.0) return ScoreTrend.improving;
+    if (diff < -5.0) return ScoreTrend.declining;
+    return ScoreTrend.stable;
+  }
+
+  /// セント差を計算する内部メソッド
+  static double _calculateCentsDifference(double freq1, double freq2) {
+    return 1200.0 * (math.log(freq1 / freq2) / math.ln2);
+  }
+}
+
+/// リアルタイムスコア結果
+class RealtimeScoreResult {
+  final double detectedPitch;
+  final double referencePitch;
+  final double centsDifference;
+  final double score;
+  final ScoreAccuracy accuracy;
+  final bool isValid;
+
+  const RealtimeScoreResult({
+    required this.detectedPitch,
+    required this.referencePitch,
+    required this.centsDifference,
+    required this.score,
+    required this.accuracy,
+    required this.isValid,
+  });
+
+  factory RealtimeScoreResult.invalid() {
+    return const RealtimeScoreResult(
+      detectedPitch: 0.0,
+      referencePitch: 0.0,
+      centsDifference: 0.0,
+      score: 0.0,
+      accuracy: ScoreAccuracy.poor,
+      isValid: false,
+    );
+  }
+}
+
+/// 累積スコア結果
+class CumulativeScoreResult {
+  final double averageScore;
+  final double maxScore;
+  final double minScore;
+  final int validCount;
+  final int totalCount;
+  final double stability;
+  final ScoreTrend trend;
+
+  const CumulativeScoreResult({
+    required this.averageScore,
+    required this.maxScore,
+    required this.minScore,
+    required this.validCount,
+    required this.totalCount,
+    required this.stability,
+    required this.trend,
+  });
+
+  factory CumulativeScoreResult.empty() {
+    return const CumulativeScoreResult(
+      averageScore: 0.0,
+      maxScore: 0.0,
+      minScore: 0.0,
+      validCount: 0,
+      totalCount: 0,
+      stability: 0.0,
+      trend: ScoreTrend.stable,
+    );
+  }
+
+  double get validRatio => totalCount > 0 ? validCount / totalCount : 0.0;
+}
+
+/// スコア正確性レベル
+enum ScoreAccuracy {
+  perfect('完璧', 100),
+  excellent('素晴らしい', 90),
+  good('良い', 75),
+  fair('まあまあ', 50),
+  poor('要改善', 25);
+
+  const ScoreAccuracy(this.label, this.threshold);
+  final String label;
+  final int threshold;
+}
+
+/// スコアトレンド
+enum ScoreTrend {
+  improving('上昇中'),
+  declining('下降中'),
+  stable('安定');
+
+  const ScoreTrend(this.label);
+  final String label;
 }
 
 /// ピッチ比較に関する例外クラス

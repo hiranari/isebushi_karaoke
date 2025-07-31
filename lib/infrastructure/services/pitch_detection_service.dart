@@ -244,9 +244,7 @@ class PitchDetectionService {
   /// Returns: List of detected pitches in Hz (0 means no pitch detected)
   Future<List<double>> _analyzePitchFromPcm(Uint8List pcmData, int sampleRate, {List<double>? referencePitches}) async {
     try {
-      debugPrint('=== ピッチ検出デバッグ ===');
-      debugPrint('PCMデータサイズ: ${pcmData.length}バイト');
-      debugPrint('サンプリングレート: ${sampleRate}Hz');
+      // 性能最適化: デバッグ出力を削除
       
       final detector = PitchDetector(
         audioSampleRate: sampleRate.toDouble(),
@@ -256,57 +254,46 @@ class PitchDetectionService {
       final pitches = <double>[];
       const chunkSize = 1024 * 2; // バッファサイズに合わせて調整
       
-      debugPrint('チャンクサイズ: $chunkSize バイト (${chunkSize ~/ 2} サンプル)');
-      debugPrint('総チャンク数: ${(pcmData.length / chunkSize).ceil()}');
-      
-      // PCMデータをオーバーラップするチャンクに分割して解析（より多くの検出機会）
-      int validDetections = 0;
+      // PCMデータをオーバーラップするチャンクに分割して解析
       int totalChunks = 0;
       const overlapRatio = 0.5; // 50%オーバーラップ
       final stepSize = (chunkSize * (1.0 - overlapRatio)).round();
+      
+      // 無音区間スキップ用の変数
+      bool foundFirstSound = false;
       
       for (int i = 0; i < pcmData.length - chunkSize; i += stepSize) {
         final chunk = pcmData.sublist(i, i + chunkSize);
         totalChunks++;
         
+        // 無音区間の検出とスキップ
+        final chunkVolume = _calculateChunkVolume(chunk);
+        if (!foundFirstSound && chunkVolume < 50) {
+          pitches.add(0.0);
+          continue;
+        } else if (!foundFirstSound && chunkVolume >= 50) {
+          foundFirstSound = true;
+        }
+        
         try {
           // ピッチ検出API：Uint8Listバッファからピッチを検出
           final result = await detector.getPitchFromIntBuffer(chunk);
           
-          // デバッグ用：最初の10チャンクの詳細を出力
-          if (totalChunks <= 10) {
-            debugPrint('チャンク$totalChunks: pitched=${result.pitched}, pitch=${result.pitch.toStringAsFixed(2)}Hz, probability=${result.probability.toStringAsFixed(3)}');
-            
-            // チャンクの音量レベルもチェック
-            final chunkVolume = _calculateChunkVolume(chunk);
-            debugPrint('  音量レベル: ${chunkVolume.toStringAsFixed(2)}');
-          }
-          
           // より柔軟なピッチ検出とオクターブ補正
-          if (result.pitched && result.probability > 0.1) {  // 閾値を大幅に下げる（0.3→0.1）
+          if (result.pitched && result.probability > 0.1) {
             double detectedPitch = result.pitch;
             double originalPitch = detectedPitch;
             
-            // 新しい改良されたオクターブ補正を使用
+            // オクターブ補正を使用
             double correctedPitch = correctOctave(detectedPitch, null);
             
             // 調整後のピッチが範囲内の場合のみ採用
             if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
               pitches.add(correctedPitch);
-              validDetections++;
-              
-              // デバッグ用：オクターブ補正を行った場合
-              if ((correctedPitch - originalPitch).abs() > 1.0 && totalChunks <= 20) {
-                debugPrint('  改良オクターブ補正: ${originalPitch.toStringAsFixed(2)}Hz → ${correctedPitch.toStringAsFixed(2)}Hz');
-              }
             } else {
               // 範囲外でも、元のピッチが意味のある値の場合は記録
               if (originalPitch > 50 && originalPitch < 1000) {
-                pitches.add(originalPitch); // オクターブ補正なしで記録
-                validDetections++;
-                if (totalChunks <= 20) {
-                  debugPrint('  範囲外ピッチを採用: ${originalPitch.toStringAsFixed(2)}Hz');
-                }
+                pitches.add(originalPitch);
               } else {
                 pitches.add(0.0);
               }
@@ -318,17 +305,12 @@ class PitchDetectionService {
             
             if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
               pitches.add(correctedPitch);
-              validDetections++;
-              if (totalChunks <= 20) {
-                debugPrint('  低信頼度ピッチを採用: ${detectedPitch.toStringAsFixed(2)}Hz → ${correctedPitch.toStringAsFixed(2)}Hz (probability=${result.probability.toStringAsFixed(3)})');
-              }
             } else {
               pitches.add(0.0);
             }
           } else {
             // 音量ベースのフォールバック検出
-            final chunkVolume = _calculateChunkVolume(chunk);
-            if (chunkVolume > 50) { // 音量閾値をさらに下げて動的推定を優先
+            if (chunkVolume > 50) {
               // 動的ピッチ推定：時間位置に基づいて基準ピッチを推定
               final estimatedPitch = _estimatePitchFromTimePosition(
                 totalChunks, 
@@ -336,48 +318,18 @@ class PitchDetectionService {
                 referencePitches,
               );
               pitches.add(estimatedPitch);
-              validDetections++;
-              if (totalChunks <= 20) {
-                debugPrint('  動的推定ピッチ: ${estimatedPitch.toStringAsFixed(2)}Hz (音量=${chunkVolume.toStringAsFixed(2)})');
-              }
             } else {
               pitches.add(0.0);
-              
-              // デバッグ用：検出失敗の理由を記録
-              if (totalChunks <= 10) {
-                debugPrint('  検出失敗理由: 音量不足 (${chunkVolume.toStringAsFixed(2)} < 50)');
-                if (!result.pitched) {
-                  debugPrint('  加えて: pitched=false (pitch=${result.pitch.toStringAsFixed(2)}Hz, probability=${result.probability.toStringAsFixed(3)})');
-                } else if (result.probability <= 0.1) {
-                  debugPrint('  加えて: 低確率 (${result.probability.toStringAsFixed(3)})');
-                }
-              }
             }
           }
         } catch (e) {
           // エラーの場合は0を追加
           pitches.add(0.0);
-          if (totalChunks <= 10) {
-            debugPrint('チャンク$totalChunks: エラー - $e');
-          }
         }
       }
 
-      debugPrint('ピッチ検出結果: ${pitches.length}個中 $validDetections個が有効');
-      debugPrint('有効検出率: ${(validDetections / pitches.length * 100).toStringAsFixed(1)}%');
-      
-      // 最初の10個の検出結果を表示
-      debugPrint('検出ピッチサンプル（最初の10個）:');
-      final samplePitches = pitches.take(10).toList();
-      for (int i = 0; i < samplePitches.length; i++) {
-        debugPrint('  [$i]: ${samplePitches[i].toStringAsFixed(2)}Hz');
-      }
-      
-      debugPrint('=== ピッチ検出デバッグ終了 ===');
-
       return pitches;
     } catch (e) {
-      debugPrint('ピッチ検出エラー: $e');
       // エラーが発生した場合は空のリストを返す
       return [];
     }
@@ -595,6 +547,7 @@ class PitchDetectionService {
     }
     return defaultPitch;
   }
+
 }
 
 /// ピッチ検出に関する例外クラス

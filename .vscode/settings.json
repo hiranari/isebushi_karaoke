@@ -1,4 +1,23 @@
 {
+  "dart.lineLength": 120,
+  "dart.showLintWarnings": true,
+  "flutter.previewEmbeddedAndroidViews": true,
+  "files.autoSave": "onFocusChange",
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "problems.decorations.enabled": true,
+  "dart.analysisExcludedFolders": [
+    "tools/"
+  ],
+  "editor.rulers": [120],
+  "dart.showTodos": false,
+  "dart.showIgnoreQuickFixes": false,
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "dart.previewFlutterUiGuides": true,
+  "dart.previewFlutterUiGuidesCustomTracking": true,
   "cSpell.words": [
     "isebushi",
     "karaoke",
