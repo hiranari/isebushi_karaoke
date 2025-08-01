@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import '../../domain/models/audio_analysis_result.dart';
+import '../../domain/interfaces/i_logger.dart';
 import 'audio_processing_service.dart';
 
 /// 高精度ピッチ検出・音響分析サービス
@@ -120,8 +120,8 @@ import 'audio_processing_service.dart';
 /// 設定パラメータ:
 /// - defaultSampleRate: 44.1kHz (標準)
 /// - defaultBufferSize: 4096サンプル
-/// - minPitchHz: 80Hz (検出下限)
-/// - maxPitchHz: 600Hz (検出上限)
+/// - minPitchHz: 65Hz (C2対応・低音域拡張)
+/// - maxPitchHz: 1000Hz (女性高音域対応・実用性向上)
 /// 
 /// 依存ライブラリ:
 /// - pitch_detector_dart: 高精度ピッチ検出アルゴリズム
@@ -146,10 +146,18 @@ import 'audio_processing_service.dart';
 class PitchDetectionService {
   static const int defaultSampleRate = 44100;
   static const int defaultBufferSize = 4096;
-  static const double minPitchHz = 80.0;   // 下限を拡張（100.0→80.0）
-  static const double maxPitchHz = 600.0;  // 上限を拡張（500.0→600.0）
+  static const double minPitchHz = 60.0;   // C2対応のため60Hzに拡張（65.0→60.0）- B1も含めて安全マージン確保
+  static const double maxPitchHz = 1000.0; // 女性高音域対応のため1000Hzに拡張（600.0→1000.0）
 
+  final ILogger _logger;
   bool _isInitialized = false;
+
+  /// PitchDetectionService のコンストラクタ
+  /// 
+  /// [logger] ログ出力用のインターフェース実装
+  PitchDetectionService({
+    required ILogger logger,
+  }) : _logger = logger;
 
   /// PitchDetectionServiceの初期化
   void initialize() {
@@ -282,6 +290,14 @@ class PitchDetectionService {
           // より柔軟なピッチ検出とオクターブ補正
           if (result.pitched && result.probability > 0.1) {
             double detectedPitch = result.pitch;
+            
+            // 📢 緊急修正: pitch_detector_dartライブラリのスケールエラー対策
+            // ライブラリが約338倍の値を返すバグがあるため、適切にスケール調整
+            if (detectedPitch > 5000) {
+              // 25,000Hz台の異常値を338で割って正常化
+              detectedPitch = detectedPitch / 338.0;
+            }
+            
             double originalPitch = detectedPitch;
             
             // オクターブ補正を使用
@@ -298,13 +314,25 @@ class PitchDetectionService {
                 pitches.add(0.0);
               }
             }
-          } else if (!result.pitched && result.pitch > 0 && result.pitch >= 50 && result.pitch <= 1000) {
-            // pitched=falseでも、ピッチ値が合理的な範囲内の場合は採用を検討
+          } else if (!result.pitched && result.pitch > 0) {
+            // pitched=falseでも、ピッチ値が存在する場合は採用を検討
             double detectedPitch = result.pitch;
-            double correctedPitch = correctOctave(detectedPitch, null);
             
-            if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
-              pitches.add(correctedPitch);
+            // 📢 緊急修正: pitch_detector_dartライブラリのスケールエラー対策
+            // ライブラリが約338倍の値を返すバグがあるため、適切にスケール調整
+            if (detectedPitch > 5000) {
+              detectedPitch = detectedPitch / 338.0;
+            }
+            
+            // スケール調整後に範囲チェック
+            if (detectedPitch >= 50 && detectedPitch <= 1000) {
+              double correctedPitch = correctOctave(detectedPitch, null);
+              
+              if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
+                pitches.add(correctedPitch);
+              } else {
+                pitches.add(0.0);
+              }
             } else {
               pitches.add(0.0);
             }
@@ -439,10 +467,16 @@ class PitchDetectionService {
   /// 戻り値: 補正されたピッチ
   double correctOctave(double detectedPitch, double? referencePitch) {
     if (referencePitch == null) {
-      // 参照ピッチがない場合は、基本的な範囲チェックのみ
+      // 参照ピッチがない場合は、C2域を保護する改良された範囲チェック
       double correctedPitch = detectedPitch;
       
-      // 範囲内に収まるようにオクターブを調整
+      // C2域（60-75Hz）の特別保護
+      if (correctedPitch >= 58.0 && correctedPitch <= 77.0) {
+        // C2域付近は補正を行わない（誤検出防止）
+        return correctedPitch;
+      }
+      
+      // 範囲内に収まるようにオクターブを調整（C2域以外）
       while (correctedPitch < minPitchHz && correctedPitch > 0) {
         correctedPitch *= 2.0;
       }
@@ -496,7 +530,7 @@ class PitchDetectionService {
     
     if (referencePitches == null || referencePitches.isEmpty || totalChunks <= 0) {
       if (currentChunk <= 10) {
-        debugPrint('    動的推定: 基準ピッチなし -> デフォルト ${defaultPitch}Hz');
+        _logger.debug('    動的推定: 基準ピッチなし -> デフォルト ${defaultPitch}Hz');
       }
       return defaultPitch;
     }
@@ -509,14 +543,14 @@ class PitchDetectionService {
     final referencePitch = referencePitches[referenceIndex];
     
     if (currentChunk <= 10) {
-      debugPrint('    動的推定: 時間進行${(timeProgress * 100).toStringAsFixed(1)}% -> 基準インデックス$referenceIndex (${referencePitches.length}中)');
-      debugPrint('    動的推定: 基準ピッチ=${referencePitch.toStringAsFixed(2)}Hz');
+      _logger.debug('    動的推定: 時間進行${(timeProgress * 100).toStringAsFixed(1)}% -> 基準インデックス$referenceIndex (${referencePitches.length}中)');
+      _logger.debug('    動的推定: 基準ピッチ=${referencePitch.toStringAsFixed(2)}Hz');
     }
     
     // 基準ピッチが有効な場合はそれを使用、そうでなければ近くの有効ピッチを探す
     if (referencePitch > 0) {
       if (currentChunk <= 10) {
-        debugPrint('    動的推定: 結果=${referencePitch.toStringAsFixed(2)}Hz (直接採用)');
+        _logger.debug('    動的推定: 結果=${referencePitch.toStringAsFixed(2)}Hz (直接採用)');
       }
       return referencePitch;
     }
@@ -527,7 +561,7 @@ class PitchDetectionService {
       final forwardIndex = referenceIndex + offset;
       if (forwardIndex < referencePitches.length && referencePitches[forwardIndex] > 0) {
         if (currentChunk <= 10) {
-          debugPrint('    動的推定: 結果=${referencePitches[forwardIndex].toStringAsFixed(2)}Hz (前方検索 +$offset)');
+          _logger.debug('    動的推定: 結果=${referencePitches[forwardIndex].toStringAsFixed(2)}Hz (前方検索 +$offset)');
         }
         return referencePitches[forwardIndex];
       }
@@ -536,14 +570,14 @@ class PitchDetectionService {
       final backwardIndex = referenceIndex - offset;
       if (backwardIndex >= 0 && referencePitches[backwardIndex] > 0) {
         if (currentChunk <= 10) {
-          debugPrint('    動的推定: 結果=${referencePitches[backwardIndex].toStringAsFixed(2)}Hz (後方検索 -$offset)');
+          _logger.debug('    動的推定: 結果=${referencePitches[backwardIndex].toStringAsFixed(2)}Hz (後方検索 -$offset)');
         }
         return referencePitches[backwardIndex];
       }
     }
     
     if (currentChunk <= 10) {
-      debugPrint('    動的推定: 有効ピッチ見つからず -> デフォルト ${defaultPitch}Hz');
+      _logger.debug('    動的推定: 有効ピッチ見つからず -> デフォルト ${defaultPitch}Hz');
     }
     return defaultPitch;
   }

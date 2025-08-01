@@ -169,13 +169,13 @@ class KaraokeSessionProvider extends ChangeNotifier {
   /// 録音ピッチデータの置換
   /// 
   /// 実際の録音ファイルから抽出したピッチデータで、リアルタイムで生成された
-  /// シミュレーションピッチを置き換えます。
+  /// 一時的なピッチデータを置き換えます。
   /// 
   /// @param pitches 実際の録音から抽出されたピッチデータ
   void replaceRecordedPitches(List<double> pitches) {
     _recordedPitches.clear();
     _recordedPitches.addAll(pitches);
-    debugPrint('録音ピッチデータを置換: ${pitches.length}個のピッチ');
+    DebugLogger.info('録音ピッチデータを置換: ${pitches.length}個のピッチ');
     notifyListeners();
   }
 

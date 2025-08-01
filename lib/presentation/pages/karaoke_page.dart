@@ -9,9 +9,10 @@ import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../infrastructure/services/pitch_detection_service.dart';
-import '../../infrastructure/services/cache_service.dart';
 import '../../infrastructure/services/pitch_comparison_service.dart';
+import '../../infrastructure/services/pitch_verification_service.dart';
 import '../../application/providers/karaoke_session_provider.dart';
+import '../../application/use_cases/verify_pitch_use_case.dart';
 import '../widgets/karaoke/progressive_score_display.dart';
 import '../widgets/karaoke/realtime_pitch_visualizer.dart';
 import '../widgets/pitch_visualization_widget.dart';
@@ -45,6 +46,10 @@ class _KaraokePageState extends State<KaraokePage> {
 
   // Phase 1サービス（既存機能）
   final PitchDetectionService _pitchDetectionService = PitchDetectionService();
+  
+  // Phase 3: 新しいアーキテクチャサービス
+  late final PitchVerificationService _verificationService;
+  late final VerifyPitchUseCase _verifyPitchUseCase;
 
   // Phase 3: リアルタイムスコア機能
   final List<RealtimeScoreResult> _scoreHistory = [];
@@ -65,6 +70,15 @@ class _KaraokePageState extends State<KaraokePage> {
   @override
   void initState() {
     super.initState();
+    
+    // Phase 3: 新しいアーキテクチャサービス初期化
+    _verificationService = PitchVerificationService(
+      pitchDetectionService: _pitchDetectionService,
+    );
+    _verifyPitchUseCase = VerifyPitchUseCase(
+      verificationService: _verificationService,
+    );
+    
     // デバッグセッション開始
     DebugFileLogger.startSession('カラオケページ開始');
   }
@@ -109,7 +123,10 @@ class _KaraokePageState extends State<KaraokePage> {
     super.dispose();
   }
 
-  /// 基準ピッチデータの読み込み（Phase 1機能を維持）
+  /// 基準ピッチデータの読み込み（Phase 3: クリーンアーキテクチャ対応）
+  /// 
+  /// UseCaseパターンを使用してDRY原則に従い、
+  /// 外部ツールと同じロジックでピッチ検証を実行
   Future<void> _loadReferencePitches(Map<String, String> selectedSong) async {
     setState(() {
       _isLoadingReferencePitches = true;
@@ -120,109 +137,37 @@ class _KaraokePageState extends State<KaraokePage> {
       final audioFile = selectedSong['audioFile']!;
       final songTitle = selectedSong['title']!;
 
-      // キャッシュから読み込み試行
-      setState(() => _analysisStatus = 'キャッシュを確認中...');
-      final cachedResult = await CacheService.loadFromCache(audioFile);
+      setState(() => _analysisStatus = 'ピッチ検証実行中...');
 
-      List<double> pitches;
-      if (cachedResult != null) {
-        pitches = cachedResult.pitches;
-        setState(() => _analysisStatus = 'キャッシュから読み込み完了');
-        _showSnackBar('キャッシュからピッチデータを読み込みました');
-        
-        // キャッシュからの読み込みもDebugFileLoggerに記録
-        DebugFileLogger.log('CACHE', 'キャッシュからピッチデータを読み込み: $audioFile', data: {
-          'pitch_count': pitches.length,
-          'cached': true,
-        });
+      // Phase 3: 新しいUseCaseパターンでピッチ検証実行
+      final verificationResult = await _verifyPitchUseCase.execute(
+        wavFilePath: audioFile,
+        useCache: true,
+        exportJson: false, // UI使用時はJSON出力なし
+      );
 
-        // CopilotDebugBridge向けキャッシュピッチ情報の出力
-        await _outputCachePitchDebugInfo(audioFile, songTitle, pitches, cachedResult);
-      } else {
-        // 新規解析
-        setState(() => _analysisStatus = 'ピッチデータを解析中...');
-        _showSnackBar('ピッチデータを解析中...');
+      final pitches = verificationResult.pitches;
+      final stats = verificationResult.statistics;
 
-        final analysisResult = await _pitchDetectionService.extractPitchFromAudio(
-          sourcePath: audioFile,
-          isAsset: true,
-        );
-
-        pitches = analysisResult.pitches;
-        await CacheService.saveToCache(audioFile, analysisResult);
-        setState(() => _analysisStatus = '解析完了・キャッシュ保存済み');
-        DebugLogger.success('ピッチデータの解析が完了しました');
-        _showSnackBar('ピッチデータの解析が完了しました');
-        
-        // DebugFileLoggerにピッチ検出結果を記録
-        DebugFileLogger.logPitchDetection(audioFile, pitches);
-      }
-
-      // === 基準ピッチデバッグ情報 ===
-      debugPrint('=== 基準ピッチ抽出デバッグ ===');
-      debugPrint('楽曲: $songTitle');
-      debugPrint('音源ファイル: $audioFile');
-      debugPrint('抽出されたピッチ数: ${pitches.length}');
+      // UI状態更新
+      setState(() => _analysisStatus = verificationResult.fromCache 
+          ? 'キャッシュから読み込み完了' 
+          : '解析完了・キャッシュ保存済み');
       
+      // ユーザーフィードバック
+      _showSnackBar(verificationResult.fromCache 
+          ? 'キャッシュからピッチデータを読み込みました'
+          : 'ピッチデータの解析が完了しました');
+
+      // デバッグ情報の統合出力
+      await _outputVerificationDebugInfo(audioFile, songTitle, verificationResult);
+
+      // Phase 3: 統計情報に基づく高度なデバッグ出力
       if (audioFile.contains('Test.wav')) {
-        debugPrint('⚠️ Test.wav特別分析モード ⚠️');
-        
-        // 全ピッチの統計
-        final validPitches = pitches.where((p) => p > 0).toList();
-        final zeroPitches = pitches.where((p) => p == 0).length;
-        
-        debugPrint('有効ピッチ数: ${validPitches.length} / ${pitches.length}');
-        debugPrint('無音（0Hz）数: $zeroPitches');
-        debugPrint('有効率: ${(validPitches.length / pitches.length * 100).toStringAsFixed(1)}%');
-        
-        if (validPitches.isNotEmpty) {
-          final minPitch = validPitches.reduce((a, b) => a < b ? a : b);
-          final maxPitch = validPitches.reduce((a, b) => a > b ? a : b);
-          final avgPitch = validPitches.reduce((a, b) => a + b) / validPitches.length;
-          
-          debugPrint('ピッチ範囲: ${minPitch.toStringAsFixed(1)}Hz 〜 ${maxPitch.toStringAsFixed(1)}Hz');
-          debugPrint('平均ピッチ: ${avgPitch.toStringAsFixed(1)}Hz');
-          debugPrint('レンジ: ${(maxPitch - minPitch).toStringAsFixed(1)}Hz');
-          
-          // ドレミファソラシドの期待範囲（C4-C5）
-          const expectedMin = 261.63; // C4 ド
-          const expectedMax = 523.25; // C5 ド
-          
-          if (minPitch >= expectedMin * 0.9 && maxPitch <= expectedMax * 1.1) {
-            debugPrint('✅ ピッチ範囲がドレミファソラシド（C4-C5）に適合');
-          } else {
-            debugPrint('❌ ピッチ範囲がドレミファソラシドと不一致');
-            debugPrint('   期待範囲: ${expectedMin.toStringAsFixed(1)}Hz 〜 ${expectedMax.toStringAsFixed(1)}Hz');
-          }
-          
-          // 最初と最後の10個のピッチを表示
-          debugPrint('最初の10個のピッチ:');
-          for (int i = 0; i < math.min(10, pitches.length); i++) {
-            debugPrint('  [$i]: ${pitches[i].toStringAsFixed(2)}Hz');
-          }
-          
-          if (pitches.length > 20) {
-            debugPrint('最後の10個のピッチ:');
-            for (int i = pitches.length - 10; i < pitches.length; i++) {
-              debugPrint('  [$i]: ${pitches[i].toStringAsFixed(2)}Hz');
-            }
-          }
-        } else {
-          debugPrint('❌ 有効なピッチが検出されませんでした！');
-          debugPrint('原因: Test.wavファイルのピッチ検出が完全に失敗');
-        }
-        
-        debugPrint('=== Test.wav特別分析終了 ===');
-      }
-      
-      debugPrint('基準ピッチサンプル（最初の10個）:');
-      final baseSample = pitches.take(10).toList();
-      for (int i = 0; i < baseSample.length; i++) {
-        debugPrint('  [$i]: ${baseSample[i].toStringAsFixed(2)}Hz');
+        _outputAdvancedTestWavAnalysis(songTitle, stats, pitches);
       }
 
-      // ピッチデータの範囲チェックと補正（伊勢節に適した範囲：100-500Hz）
-      // ただし、ドレミファソラシドの音階に合わせて範囲を拡張
+      // ピッチデータの範囲チェックと補正（伊勢節に適した範囲）
       final filteredPitches = pitches.map((pitch) {
         if (pitch > 0) {
           // ドレミファソラシドの周波数範囲を考慮（C4=261.63Hz〜C6=1046.5Hz）
@@ -712,11 +657,15 @@ class _KaraokePageState extends State<KaraokePage> {
       if (mounted) {
         _showSnackBar('録音音声の分析に失敗しました: ${e.toString()}');
         
-        // フォールバック処理：シミュレーションデータを使用
+        // フォールバック処理：録音中のデータを使用
         final sessionProvider = context.read<KaraokeSessionProvider>();
         if (sessionProvider.recordedPitches.isNotEmpty) {
           _showSnackBar('録音中のデータを使用してスコアを計算します');
-          debugPrint('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+          DebugLogger.info('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+        } else {
+          DebugLogger.error('録音データが存在しないため、スコア計算を中止します');
+          _showSnackBar('録音データが不足しています。もう一度お試しください。');
+          return;
         }
       }
     }
@@ -1199,77 +1148,109 @@ class _KaraokePageState extends State<KaraokePage> {
     }
   }
 
-  /// キャッシュから読み込んだピッチ情報のデバッグ出力
-  Future<void> _outputCachePitchDebugInfo(
+  /// Phase 3: 検証結果の統合デバッグ出力
+  Future<void> _outputVerificationDebugInfo(
     String audioFile,
     String songTitle,
-    List<double> pitches,
-    dynamic cachedResult,
+    dynamic verificationResult, // PitchVerificationResult
   ) async {
     if (kDebugMode) {
-      // 基本統計情報の計算
-      final validPitches = pitches.where((p) => p > 0).toList();
-      final invalidCount = pitches.length - validPitches.length;
+      final stats = verificationResult.statistics;
       
-      debugPrint('=== 🗄️ キャッシュピッチデバッグ情報 ===');
+      debugPrint('=== 🎯 ピッチ検証結果 ===');
       debugPrint('楽曲: $songTitle');
       debugPrint('音源ファイル: $audioFile');
-      debugPrint('キャッシュ分析日時: ${cachedResult.analysisDate.toLocal()}');
-      debugPrint('キャッシュ経過時間: ${DateTime.now().difference(cachedResult.analysisDate).inHours}時間');
-      debugPrint('総ピッチ数: ${pitches.length}');
-      debugPrint('有効ピッチ数: ${validPitches.length}');
-      debugPrint('無効ピッチ数: $invalidCount');
-      debugPrint('有効率: ${(validPitches.length / pitches.length * 100).toStringAsFixed(1)}%');
-
-      if (validPitches.isNotEmpty) {
-        final minPitch = validPitches.reduce((a, b) => a < b ? a : b);
-        final maxPitch = validPitches.reduce((a, b) => a > b ? a : b);
-        final avgPitch = validPitches.reduce((a, b) => a + b) / validPitches.length;
-        
+      debugPrint('分析日時: ${verificationResult.analyzedAt.toLocal()}');
+      debugPrint('キャッシュ使用: ${verificationResult.fromCache}');
+      debugPrint('総ピッチ数: ${stats.totalCount}');
+      debugPrint('有効ピッチ数: ${stats.validCount}');
+      debugPrint('有効率: ${stats.validRate.toStringAsFixed(1)}%');
+      
+      if (stats.validCount > 0) {
         debugPrint('ピッチ統計:');
-        debugPrint('  最小: ${minPitch.toStringAsFixed(1)} Hz');
-        debugPrint('  最大: ${maxPitch.toStringAsFixed(1)} Hz');
-        debugPrint('  平均: ${avgPitch.toStringAsFixed(1)} Hz');
-        debugPrint('  範囲: ${(maxPitch - minPitch).toStringAsFixed(1)} Hz');
-
-        // 最初の10個のピッチを表示
-        debugPrint('最初の10個のピッチ:');
-        final firstTen = pitches.take(10).toList();
-        for (int i = 0; i < firstTen.length; i++) {
-          final pitch = firstTen[i];
-          final status = pitch > 0 ? '✓' : '✗';
-          debugPrint('  [$i] $status ${pitch.toStringAsFixed(1)} Hz');
-        }
+        debugPrint('  範囲: ${stats.minPitch.toStringAsFixed(1)}Hz 〜 ${stats.maxPitch.toStringAsFixed(1)}Hz');
+        debugPrint('  平均: ${stats.avgPitch.toStringAsFixed(1)}Hz');
+        debugPrint('  範囲幅: ${stats.pitchRange.toStringAsFixed(1)}Hz');
+        debugPrint('  期待範囲適合: ${stats.isInExpectedRange ? "✅" : "❌"}');
       }
 
-      // CopilotDebugBridgeへの構造化データ出力
-      final debugData = {
-        'source': 'CACHE_PITCH_LOAD',
+      // DebugFileLoggerに記録
+      DebugFileLogger.log('PITCH_VERIFICATION', '統合ピッチ検証完了: $audioFile', data: {
+        'song_title': songTitle,
+        'from_cache': verificationResult.fromCache,
+        'total_pitches': stats.totalCount,
+        'valid_pitches': stats.validCount,
+        'valid_rate': stats.validRate,
+        'is_in_expected_range': stats.isInExpectedRange,
+      });
+
+      // CopilotDebugBridgeへの出力
+      CopilotDebugBridge.setStates({
+        'source': 'PITCH_VERIFICATION_RESULT',
         'file_path': audioFile,
         'song_title': songTitle,
-        'cache_analysis_date': cachedResult.analysisDate.toIso8601String(),
-        'cache_age_hours': DateTime.now().difference(cachedResult.analysisDate).inHours,
-        'total_pitches': pitches.length,
-        'valid_pitches': validPitches.length,
-        'validity_rate': validPitches.length / pitches.length,
-        'statistics': validPitches.isNotEmpty ? {
-          'min_hz': validPitches.reduce((a, b) => a < b ? a : b),
-          'max_hz': validPitches.reduce((a, b) => a > b ? a : b),
-          'avg_hz': validPitches.reduce((a, b) => a + b) / validPitches.length,
-        } : null,
-      };
-
-      // CopilotDebugBridgeに送信
-      try {
-        CopilotDebugBridge.setStates({
-          'cache_pitch_debug': debugData,
-        });
-        debugPrint('✅ CopilotDebugBridge: キャッシュピッチ情報送信完了');
-      } catch (e) {
-        debugPrint('❌ CopilotDebugBridge送信エラー: $e');
-      }
-
-      debugPrint('=== 🗄️ キャッシュピッチデバッグ終了 ===');
+        'analysis_date': verificationResult.analyzedAt.toIso8601String(),
+        'from_cache': verificationResult.fromCache,
+        'statistics': {
+          'total_count': stats.totalCount,
+          'valid_count': stats.validCount,
+          'valid_rate': stats.validRate,
+          'min_pitch': stats.minPitch,
+          'max_pitch': stats.maxPitch,
+          'avg_pitch': stats.avgPitch,
+          'pitch_range': stats.pitchRange,
+          'is_in_expected_range': stats.isInExpectedRange,
+        },
+        'first_ten_pitches': stats.firstTen,
+        'last_ten_pitches': stats.lastTen,
+      });
     }
+  }
+
+  /// Phase 3: Test.wav用の高度な分析出力
+  void _outputAdvancedTestWavAnalysis(
+    String songTitle,
+    dynamic stats, // PitchStatistics
+    List<double> pitches,
+  ) {
+    debugPrint('⚠️ Test.wav高度分析モード ⚠️');
+    debugPrint('=== 📊 統計ベース分析 ===');
+    
+    if (stats.validCount > 0) {
+      // 期待範囲チェック
+      const expectedMin = 261.63; // C4 ド
+      const expectedMax = 523.25; // C5 ド
+      
+      if (stats.isInExpectedRange) {
+        debugPrint('✅ ピッチ範囲がドレミファソラシド（C4-C5）範囲に適合');
+      } else {
+        debugPrint('❌ ピッチ範囲がドレミファソラシドと不一致');
+        debugPrint('   期待範囲: ${expectedMin.toStringAsFixed(1)}Hz 〜 ${expectedMax.toStringAsFixed(1)}Hz');
+        debugPrint('   実際範囲: ${stats.minPitch.toStringAsFixed(1)}Hz 〜 ${stats.maxPitch.toStringAsFixed(1)}Hz');
+      }
+      
+      // 詳細なピッチサンプル表示
+      debugPrint('最初の10個のピッチ詳細:');
+      for (int i = 0; i < stats.firstTen.length; i++) {
+        final pitch = stats.firstTen[i];
+        final status = pitch > 0 ? '✓' : '✗';
+        debugPrint('  [$i] $status ${pitch.toStringAsFixed(2)}Hz');
+      }
+      
+      if (stats.lastTen.length > 0 && stats.totalCount > 10) {
+        debugPrint('最後の10個のピッチ詳細:');
+        final startIndex = stats.totalCount - stats.lastTen.length;
+        for (int i = 0; i < stats.lastTen.length; i++) {
+          final pitch = stats.lastTen[i];
+          final status = pitch > 0 ? '✓' : '✗';
+          debugPrint('  [${startIndex + i}] $status ${pitch.toStringAsFixed(2)}Hz');
+        }
+      }
+    } else {
+      debugPrint('❌ 有効なピッチが検出されませんでした！');
+      debugPrint('原因: Test.wavファイルのピッチ検出が完全に失敗');
+    }
+    
+    debugPrint('=== Test.wav高度分析終了 ===');
   }
 }
