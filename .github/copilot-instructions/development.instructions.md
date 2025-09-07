@@ -65,6 +65,16 @@ CopilotDebugBridge.reportPerformance("pitch_detection", stopwatch.elapsed,
 - 適切なエラーハンドリングの実装
 - パフォーマンス計測の組み込み
 
+### コード品質管理
+- Agentモードでの作業終了前に以下を必ず解消:
+  - コンパイルエラー
+  - 警告（Warnings）
+  - Information（情報メッセージ）
+- エラー解消の優先順位:
+  1. コンパイルエラー
+  2. 警告（Warnings）
+  3. Information（情報メッセージ）
+
 ### Security and Privacy
 - デバッグモードでのみ記録
 - 個人情報・機密情報の除外
