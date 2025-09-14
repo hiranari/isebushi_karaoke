@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:isebushi_karaoke/core/utils/dummy_logger.dart';
 import 'package:isebushi_karaoke/infrastructure/services/pitch_detection_service.dart';
 
 void main() {
@@ -6,7 +7,7 @@ void main() {
     late PitchDetectionService pitchService;
 
     setUpAll(() {
-      pitchService = PitchDetectionService();
+      pitchService = PitchDetectionService(logger: DummyLogger());
       pitchService.initialize();
     });
 

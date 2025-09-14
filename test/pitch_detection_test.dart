@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:isebushi_karaoke/core/utils/dummy_logger.dart';
 import 'package:isebushi_karaoke/infrastructure/services/pitch_detection_service.dart';
 import 'dart:typed_data';
 import 'dart:math' as math;
@@ -12,7 +13,7 @@ void main() {
     late PitchDetectionService service;
 
     setUp(() {
-      service = PitchDetectionService();
+      service = PitchDetectionService(logger: DummyLogger());
       service.initialize();
     });
 

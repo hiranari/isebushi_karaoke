@@ -6,6 +6,8 @@ import '../services/pitch_detection_service.dart';
 import '../services/analysis_service.dart';
 import '../services/feedback_service.dart';
 import '../services/cache_service.dart';
+import '../logging/console_logger.dart';
+import '../../domain/interfaces/i_logger.dart';
 
 /// 依存性注入のためのサービスロケーター
 /// 
@@ -55,7 +57,8 @@ class ServiceLocator {
     // Register service instances
     // Note: 静的メソッドのみのサービス（AudioProcessingService, ScoringService等）は登録不要
     
-    registerService<PitchDetectionService>(PitchDetectionService());
+    final ILogger logger = ConsoleLogger();
+    registerService<PitchDetectionService>(PitchDetectionService(logger: logger));
     registerService<AnalysisService>(AnalysisService());
     registerService<FeedbackService>(FeedbackService());
     registerService<CacheService>(CacheService());
