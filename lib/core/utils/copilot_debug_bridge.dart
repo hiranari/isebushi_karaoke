@@ -100,10 +100,7 @@ class CopilotDebugBridge {
     }
   }
   
-  /// セッションIDを生成（アプリ起動ごとに一意）
-  static String _getSessionId() {
-    return DateTime.now().millisecondsSinceEpoch.toString();
-  }
+  
   
   /// Copilot用のクイック状態レポート
   static void quickReport(String message, {dynamic data}) {

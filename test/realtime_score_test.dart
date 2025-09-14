@@ -18,7 +18,7 @@ void main() {
 
     test('わずかなずれでのスコア計算', () {
       // 5セント程度のずれ (わずかに高い)
-      final detectedFreq = 220.0 * 1.0029; // 約5セント高い
+      const detectedFreq = 220.0 * 1.0029; // 約5セント高い
       final result = PitchComparisonService.calculateRealtimeScore(detectedFreq, 220.0);
       
       expect(result.isValid, true);
@@ -29,7 +29,7 @@ void main() {
 
     test('半音程度のずれでのスコア計算', () {
       // 半音(100セント)のずれ
-      final detectedFreq = 220.0 * 1.0595; // 100セント高い
+      const detectedFreq = 220.0 * 1.0595; // 100セント高い
       final result = PitchComparisonService.calculateRealtimeScore(detectedFreq, 220.0);
       
       expect(result.isValid, true);

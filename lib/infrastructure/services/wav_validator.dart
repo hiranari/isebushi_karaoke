@@ -169,7 +169,7 @@ class WavValidator {
     if (channels < 1 || channels > 2) {
       issues.add(WavIssue(
         type: WavIssueType.unsupportedFormat,
-        message: '${channels}チャンネルはサポートされていません',
+        message: '$channelsチャンネルはサポートされていません',
         solution: 'モノラルまたはステレオで録音してください',
       ));
     }
