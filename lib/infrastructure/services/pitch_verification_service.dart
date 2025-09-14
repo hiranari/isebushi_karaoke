@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
 import '../../domain/interfaces/i_pitch_verification_service.dart';
-import '../../domain/interfaces/i_logger.dart';
 import '../../domain/models/pitch_verification_result.dart';
 import 'pitch_detection_service.dart';
 import 'cache_service.dart';
@@ -13,13 +12,10 @@ import 'cache_service.dart';
 /// カラオケ画面とツールの共通ロジックを提供
 class PitchVerificationService implements IPitchVerificationService {
   final PitchDetectionService _pitchDetectionService;
-  final ILogger _logger;
 
   PitchVerificationService({
     required PitchDetectionService pitchDetectionService,
-    required ILogger logger,
-  }) : _pitchDetectionService = pitchDetectionService,
-       _logger = logger;
+  }) : _pitchDetectionService = pitchDetectionService;
 
   /// サービス初期化
   void initialize() {

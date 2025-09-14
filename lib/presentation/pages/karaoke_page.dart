@@ -19,11 +19,9 @@ import '../widgets/pitch_visualization_widget.dart';
 import '../widgets/realtime_score_widget.dart';
 import '../widgets/debug/debug_info_overlay.dart';
 import '../../core/utils/singer_encoder.dart';
-import '../../core/utils/debug_logger.dart';
-import '../../core/utils/debug_file_logger.dart';
-import '../../core/utils/copilot_debug_bridge.dart';
 import '../../core/utils/pitch_debug_helper.dart';
 import '../../domain/models/audio_analysis_result.dart';
+import '../../core/utils/dummy_logger.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 
@@ -45,7 +43,9 @@ class _KaraokePageState extends State<KaraokePage> {
   bool _isPlaying = false;
 
   // Phase 1サービス（既存機能）
-  final PitchDetectionService _pitchDetectionService = PitchDetectionService();
+  final PitchDetectionService _pitchDetectionService = PitchDetectionService(
+    logger: DummyLogger(),
+  );
   
   // Phase 3: 新しいアーキテクチャサービス
   late final PitchVerificationService _verificationService;
@@ -78,9 +78,6 @@ class _KaraokePageState extends State<KaraokePage> {
     _verifyPitchUseCase = VerifyPitchUseCase(
       verificationService: _verificationService,
     );
-    
-    // デバッグセッション開始
-    DebugFileLogger.startSession('カラオケページ開始');
   }
 
   @override
@@ -279,30 +276,30 @@ class _KaraokePageState extends State<KaraokePage> {
   /// 音源再生
   Future<void> _playAudio() async {
     try {
-      _addDebugLog('音源再生を開始します');
       final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
       final audioFile = selectedSong?['audioFile'] ?? 'assets/sounds/Test.wav';
       
-      _addDebugLog('音源ファイル: $audioFile');
-      debugPrint('音源再生を開始: $audioFile');
+      if (kDebugMode) {
+        debugPrint('音源再生を開始: $audioFile');
+      }
       
       // 現在の再生を停止
       await _player.stop();
       
-      // 直接WAVファイルを再生（フォールバック処理を削除）
+      // 直接WAVファイルを再生
       await _player.setAudioSource(AudioSource.asset(audioFile));
       
       // 再生を開始
       await _player.play();
       
-      DebugLogger.success('音源再生開始完了: $audioFile');
-      _addDebugLog('音源再生を開始しました', isSuccess: true);
-      _showSnackBar('音源再生を開始しました');
+      if (mounted) {
+        _showSnackBar('音源再生を開始しました');
+      }
       
     } catch (e) {
-      DebugLogger.error('音源再生に失敗しました', e);
-      _addDebugLog('音源再生エラー: $e', isError: true);
-      _showSnackBar('音源の再生に失敗しました: $e');
+      if (mounted) {
+        _showSnackBar('音源の再生に失敗しました: $e');
+      }
     }
   }
 
@@ -352,7 +349,6 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
-      DebugLogger.error('録音の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の開始に失敗しました: ${e.toString()}');
       }
@@ -369,7 +365,6 @@ class _KaraokePageState extends State<KaraokePage> {
       // 定期的にピッチを更新するタイマーを使用
       _setupPitchDetectionTimer();
     } catch (e) {
-      DebugLogger.error('リアルタイムピッチ検出の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('リアルタイムピッチ検出の開始に失敗しました: ${e.toString()}');
       }
@@ -468,36 +463,41 @@ class _KaraokePageState extends State<KaraokePage> {
     if (!mounted) return;
     
     try {
-      // スコア計算
-      final scoreResult = PitchComparisonService.calculateRealtimeScore(
-        detectedPitch, 
-        referencePitch
-      );
-      
-      if (scoreResult.isValid) {
-        // 履歴に追加
-        _scoreHistory.add(scoreResult);
+      // デバッグモードの場合のみスコア計算を実行
+      if (kDebugMode) {
+        // スコア計算
+        final scoreResult = PitchComparisonService.calculateRealtimeScore(
+          detectedPitch, 
+          referencePitch
+        );
         
-        // ピッチ履歴に追加
-        _pitchHistory.add(detectedPitch);
-        if (_pitchHistory.length > 100) {
-          _pitchHistory.removeAt(0); // 古いデータを削除
+        if (scoreResult.isValid) {
+          // 履歴に追加
+          _scoreHistory.add(scoreResult);
+          
+          // ピッチ履歴に追加
+          _pitchHistory.add(detectedPitch);
+          if (_pitchHistory.length > 100) {
+            _pitchHistory.removeAt(0); // 古いデータを削除
+          }
+          
+          // 累積スコア計算
+          final cumulativeResult = PitchComparisonService.calculateCumulativeScore(_scoreHistory);
+          
+          // UI状態を更新
+          setState(() {
+            _currentScore = scoreResult.score;
+            _averageScore = cumulativeResult.averageScore;
+            _maxScore = cumulativeResult.maxScore;
+            _currentLevel = ScoreLevel.fromScore(_averageScore);
+          });
         }
-        
-        // 累積スコア計算
-        final cumulativeResult = PitchComparisonService.calculateCumulativeScore(_scoreHistory);
-        
-        // UI状態を更新
-        setState(() {
-          _currentScore = scoreResult.score;
-          _averageScore = cumulativeResult.averageScore;
-          _maxScore = cumulativeResult.maxScore;
-          _currentLevel = ScoreLevel.fromScore(_averageScore);
-        });
       }
     } catch (e) {
       // エラーは無視（スコア計算はオプション機能）
-      DebugLogger.error('スコア計算エラー', e);
+      if (kDebugMode) {
+        debugPrint('スコア計算エラー: $e');
+      }
     }
   }
 
@@ -536,7 +536,9 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
-      DebugLogger.error('録音の停止に失敗しました', e);
+      if (kDebugMode) {
+        debugPrint('録音の停止に失敗しました: $e');
+      }
       if (mounted) {
         _showSnackBar('録音の停止に失敗しました: ${e.toString()}');
       }
@@ -653,7 +655,6 @@ class _KaraokePageState extends State<KaraokePage> {
       }
       
     } catch (e) {
-      DebugLogger.error('録音音声の分析に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音音声の分析に失敗しました: ${e.toString()}');
         
@@ -661,9 +662,13 @@ class _KaraokePageState extends State<KaraokePage> {
         final sessionProvider = context.read<KaraokeSessionProvider>();
         if (sessionProvider.recordedPitches.isNotEmpty) {
           _showSnackBar('録音中のデータを使用してスコアを計算します');
-          DebugLogger.info('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+          if (kDebugMode) {
+            debugPrint('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+          }
         } else {
-          DebugLogger.error('録音データが存在しないため、スコア計算を中止します');
+          if (kDebugMode) {
+            debugPrint('録音データが存在しないため、スコア計算を中止します');
+          }
           _showSnackBar('録音データが不足しています。もう一度お試しください。');
           return;
         }
@@ -676,32 +681,7 @@ class _KaraokePageState extends State<KaraokePage> {
     context.read<KaraokeSessionProvider>().resetSession();
   }
 
-  /// デバッグログを追加
-  void _addDebugLog(String message, {bool isSuccess = false, bool isError = false}) {
-    if (mounted) {
-      setState(() {
-        _debugLogs.add('${DateTime.now().toIso8601String().substring(11, 19)} $message');
-        // 最大100ログまで保持
-        if (_debugLogs.length > 100) {
-          _debugLogs.removeAt(0);
-        }
-      });
-    }
-    
-    // DebugFileLoggerにも記録
-    if (isError) {
-      DebugFileLogger.log('ERROR', message);
-    } else if (isSuccess) {
-      DebugFileLogger.log('SUCCESS', message);
-    } else {
-      DebugFileLogger.log('INFO', message);
-    }
-    
-    // コンソールにも出力
-    if (kDebugMode) {
-      debugPrint(message);
-    }
-  }
+
 
   /// デバッグオーバーレイの表示切り替え
   void _toggleDebugOverlay() {
@@ -721,8 +701,6 @@ class _KaraokePageState extends State<KaraokePage> {
       if (kDebugMode) {
         debugPrint('🔄 改善版Test.wav音源切り替え開始');
       }
-      DebugFileLogger.log('AUDIO_SWITCH', '音源切り替え開始: Test.wav → Test_improved.wav');
-      
       // 改善版音源に直接切り替え（フォールバックなし）
       await _player.setAudioSource(
         AudioSource.asset('assets/sounds/Test_improved.wav'),
@@ -730,13 +708,11 @@ class _KaraokePageState extends State<KaraokePage> {
       if (kDebugMode) {
         debugPrint('✅ Test_improved.wav読み込み成功');
       }
-      DebugFileLogger.logAudioSwitch('Test.wav', 'Test_improved.wav', true);
       
       // セッションリセット
       if (mounted) {
         final sessionProvider = context.read<KaraokeSessionProvider>();
         sessionProvider.resetSession();
-        DebugFileLogger.log('SESSION', 'セッションをリセットしました');
       }
       
       // 改善版音源でピッチ検出を再実行
@@ -751,7 +727,6 @@ class _KaraokePageState extends State<KaraokePage> {
           if (kDebugMode) {
             debugPrint('🔄 改善版音源でピッチ検出を再実行');
           }
-          DebugFileLogger.log('PITCH_DETECTION', '改善版音源でピッチ検出開始');
           await _loadReferencePitches(improvedSongInfo);
         }
       }
@@ -762,9 +737,6 @@ class _KaraokePageState extends State<KaraokePage> {
       
       if (kDebugMode) {
         debugPrint('🔄 改善版Test.wav音源に切り替えました');
-      }
-      DebugFileLogger.log('AUDIO_SWITCH', '音源切り替え完了: Test_improved.wav');
-      if (kDebugMode) {
         debugPrint('   期待される結果: 261.6→293.7→329.6→349.2→392.0→440.0→493.9→523.3Hz');
       }
       _showSnackBar('改善版音源に切り替えました（構造的問題を修正済み）');
@@ -1174,36 +1146,23 @@ class _KaraokePageState extends State<KaraokePage> {
         debugPrint('  期待範囲適合: ${stats.isInExpectedRange ? "✅" : "❌"}');
       }
 
-      // DebugFileLoggerに記録
-      DebugFileLogger.log('PITCH_VERIFICATION', '統合ピッチ検証完了: $audioFile', data: {
-        'song_title': songTitle,
-        'from_cache': verificationResult.fromCache,
-        'total_pitches': stats.totalCount,
-        'valid_pitches': stats.validCount,
-        'valid_rate': stats.validRate,
-        'is_in_expected_range': stats.isInExpectedRange,
-      });
-
-      // CopilotDebugBridgeへの出力
-      CopilotDebugBridge.setStates({
-        'source': 'PITCH_VERIFICATION_RESULT',
-        'file_path': audioFile,
-        'song_title': songTitle,
-        'analysis_date': verificationResult.analyzedAt.toIso8601String(),
-        'from_cache': verificationResult.fromCache,
-        'statistics': {
-          'total_count': stats.totalCount,
-          'valid_count': stats.validCount,
-          'valid_rate': stats.validRate,
-          'min_pitch': stats.minPitch,
-          'max_pitch': stats.maxPitch,
-          'avg_pitch': stats.avgPitch,
-          'pitch_range': stats.pitchRange,
-          'is_in_expected_range': stats.isInExpectedRange,
-        },
-        'first_ten_pitches': stats.firstTen,
-        'last_ten_pitches': stats.lastTen,
-      });
+      // 詳細なデバッグ情報を表示
+      if (kDebugMode) {
+        debugPrint('詳細な検証結果:');
+        debugPrint('  - 楽曲タイトル: $songTitle');
+        debugPrint('  - 音源ファイル: $audioFile');
+        debugPrint('  - キャッシュ使用: ${verificationResult.fromCache}');
+        debugPrint('  - 分析日時: ${verificationResult.analyzedAt.toIso8601String()}');
+        debugPrint('  - 統計情報:');
+        debugPrint('    - 総ピッチ数: ${stats.totalCount}');
+        debugPrint('    - 有効ピッチ数: ${stats.validCount}');
+        debugPrint('    - 有効率: ${stats.validRate}%');
+        debugPrint('    - 最小ピッチ: ${stats.minPitch}Hz');
+        debugPrint('    - 最大ピッチ: ${stats.maxPitch}Hz');
+        debugPrint('    - 平均ピッチ: ${stats.avgPitch}Hz');
+        debugPrint('    - ピッチ範囲: ${stats.pitchRange}Hz');
+        debugPrint('    - 期待範囲内: ${stats.isInExpectedRange}');
+      }
     }
   }
 

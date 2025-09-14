@@ -10,6 +10,9 @@ import 'package:path_provider/path_provider.dart';
 class CopilotDebugBridge {
   static const String _copilotLogFile = 'copilot_debug.json';
   static final Map<String, dynamic> _state = {};
+  static String? _sessionId;
+
+  static String get _currentSessionId => _sessionId ??= DateTime.now().millisecondsSinceEpoch.toString();
   
   /// Copilot用の状態を設定
   static void setState(String key, dynamic value) {
@@ -79,7 +82,7 @@ class CopilotDebugBridge {
       final file = File('${directory.path}/$_copilotLogFile');
       
       final jsonData = {
-        'session_id': _getSessionId(),
+        'session_id': _currentSessionId,
         'app_state': _state,
         'generated_at': DateTime.now().toIso8601String(),
         'copilot_access_info': {
@@ -116,6 +119,7 @@ class CopilotDebugBridge {
   /// デバッグセッション開始をCopilotに通知
   static void startDebugSession(String sessionName) {
     if (kDebugMode) {
+      _sessionId = DateTime.now().millisecondsSinceEpoch.toString(); // セッション開始時に新しいIDを生成
       _state.clear();
       setState('debug_session', {
         'name': sessionName,
