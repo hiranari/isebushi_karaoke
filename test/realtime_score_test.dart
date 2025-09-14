@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/infrastructure/services/pitch_comparison_service.dart';
+import 'package:isebushi_karaoke/infrastructure/services/pitch_comparison_service.dart';
+import 'package:isebushi_karaoke/infrastructure/logging/console_logger.dart';
 
 void main() {
+  final logger = ConsoleLogger();
+
   group('リアルタイムスコア計算テスト', () {
     test('完璧な音程でのスコア計算', () {
       // 完全に同じピッチ
@@ -191,13 +194,13 @@ void main() {
       // expect(finalResult.trend, ScoreTrend.improving); // 改善トレンド (コメントアウト - トレンド計算は複雑)
       expect(finalResult.stability, greaterThan(60.0)); // ある程度の安定性
       
-      print('=== カラオケセッション結果 ===');
-      print('平均スコア: ${finalResult.averageScore.toStringAsFixed(1)}');
-      print('最高スコア: ${finalResult.maxScore.toStringAsFixed(1)}');
-      print('最低スコア: ${finalResult.minScore.toStringAsFixed(1)}');
-      print('安定性: ${finalResult.stability.toStringAsFixed(1)}');
-      print('トレンド: ${finalResult.trend.label}');
-      print('有効データ率: ${(finalResult.validRatio * 100).toStringAsFixed(1)}%');
+      logger.debug('=== カラオケセッション結果 ===');
+      logger.debug('平均スコア: ${finalResult.averageScore.toStringAsFixed(1)}');
+      logger.debug('最高スコア: ${finalResult.maxScore.toStringAsFixed(1)}');
+      logger.debug('最低スコア: ${finalResult.minScore.toStringAsFixed(1)}');
+      logger.debug('安定性: ${finalResult.stability.toStringAsFixed(1)}');
+      logger.debug('トレンド: ${finalResult.trend.label}');
+      logger.debug('有効データ率: ${(finalResult.validRatio * 100).toStringAsFixed(1)}%');
     });
   });
 }
