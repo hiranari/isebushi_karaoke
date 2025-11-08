@@ -31,75 +31,75 @@
 - ✅ Created service locator for dependency injection
 - ✅ Updated main.dart to initialize service locator
 
-## Remaining Tasks 🔄
+## 未完了タスク（Remaining Tasks）🔄
 
-### High Priority (Must Complete)
+### 優先度: 高（必須）
 
-#### 1. Service Implementation Updates
-- [ ] Update `AudioProcessingService` to implement `IAudioProcessingService`
-- [ ] Update `PitchDetectionService` to implement `IPitchDetectionService`
-- [ ] Update `ScoringService` to implement `IScoringService`
-- [ ] Update `AnalysisService` to implement `IAnalysisService`
-- [ ] Update `FeedbackService` to implement `IFeedbackService`
-- [ ] Update `CacheService` to implement `ICacheService`
+#### 1. サービス実装の更新
+- [ ] `AudioProcessingService` を `IAudioProcessingService` に準拠させる
+- [ ] `PitchDetectionService` を `IPitchDetectionService` に準拠させる
+- [ ] `ScoringService` を `IScoringService` に準拠させる
+- [ ] `AnalysisService` を `IAnalysisService` に準拠させる
+- [ ] `FeedbackService` を `IFeedbackService` に準拠させる
+- [ ] `CacheService` を `ICacheService` に準拠させる
 
-#### 2. Import Path Updates
-- [ ] Update all import statements in service files
-- [ ] Update all import statements in provider files
-- [ ] Update all import statements in widget files
-- [ ] Update all import statements in page files
-- [ ] Update test file imports
+#### 2. インポートパスの更新
+- [ ] サービスファイル内のインポート文をすべて更新する
+- [ ] プロバイダファイル内のインポート文をすべて更新する
+- [ ] ウィジェットファイル内のインポート文をすべて更新する
+- [ ] ページファイル内のインポート文をすべて更新する
+- [ ] テストファイルのインポートを更新する
 
-#### 3. Provider Updates
-- [ ] Update `KaraokeSessionProvider` to use service locator
-- [ ] Update `SongResultProvider` to use service locator
-- [ ] Fix dependency injection in providers
+#### 3. プロバイダの更新
+- [x] `KaraokeSessionProvider` を Service Locator を使用するように更新済み (確認済み)
+- [x] `SongResultProvider` を Service Locator を使用するように更新済み (確認済み)
+- [ ] プロバイダ内の依存性注入の不具合を修正する
 
-#### 4. Widget Updates
-- [ ] Update widget imports for new file locations
-- [ ] Update widget dependencies on services through providers
-- [ ] Ensure proper widget categorization
+#### 4. ウィジェットの更新
+- [ ] 新しいファイル配置に合わせてウィジェットのインポートを更新する
+- [ ] ウィジェットのサービス依存をプロバイダ経由に修正する
+- [ ] ウィジェットのカテゴリ分けを適切に維持する
 
-### Medium Priority
+### 優先度: 中
 
-#### 5. Use Case Implementation
-- [ ] Create `RecordKaraokeUseCase`
-- [ ] Create `AnalyzePerformanceUseCase`
-- [ ] Create `GenerateFeedbackUseCase`
+#### 5. ユースケース実装
+- [ ] `RecordKaraokeUseCase` を作成
+- [ ] `AnalyzePerformanceUseCase` を作成
+- [ ] `GenerateFeedbackUseCase` を作成
 
-#### 6. Service Enhancements
-- [ ] Add proper error handling using new exception classes
-- [ ] Implement caching in computationally expensive operations
-- [ ] Add logging using the debug logger
-- [ ] Add input validation
+#### 6. サービス強化
+- [ ] 新しい例外クラスを用いた適切なエラーハンドリングを追加する
+- [ ] 計算コストの高い処理にキャッシュを実装する
+- [ ] DebugLogger を用いたログ出力を追加する
+- [ ] 入力検証を追加する
 
-#### 7. Testing Updates
-- [ ] Update test imports for new file structure
-- [ ] Create interface mocks for testing
-- [ ] Add integration tests for new architecture
+#### 7. テストの更新
+- [ ] 新しいファイル構成に合わせてテストのインポートを更新する
+- [ ] テスト用のインターフェースモックを作成する
+- [ ] 新アーキテクチャに対する統合テストを追加する
 
-### Low Priority
+### 優先度: 低
 
-#### 8. Documentation
-- [ ] Update inline documentation
-- [ ] Create architecture decision records
-- [ ] Update README with new structure
+#### 8. ドキュメント
+- [ ] インラインドキュメントを更新する
+- [ ] アーキテクチャ決定記録（ADR）を作成する
+- [ ] 新しい構成に合わせて README を更新する
 
-## Current Status
+## 現在の状況 (Current Status)
 
-### File Structure (After Refactoring)
+### リファクタリング後のファイル構成
 ```
 lib/
-├── main.dart ✅ (updated)
-├── song_select_page.dart (needs import updates)
+├── main.dart ✅（更新済み）
+├── song_select_page.dart （インポート更新が必要）
 ├── core/
 │   ├── constants/
 │   │   └── audio_constants.dart ✅
 │   ├── errors/
 │   │   └── audio_exceptions.dart ✅
-│   └── utils/ ✅ (moved from lib/utils/)
+│   └── utils/ ✅（`lib/utils/` から移動済み）
 ├── domain/
-│   ├── models/ ✅ (moved from lib/models/)
+│   ├── models/ ✅（`lib/models/` から移動済み）
 │   └── interfaces/ ✅
 │       ├── i_audio_processing_service.dart ✅
 │       ├── i_pitch_detection_service.dart ✅
@@ -108,33 +108,33 @@ lib/
 │       ├── i_feedback_service.dart ✅
 │       └── i_cache_service.dart ✅
 ├── application/
-│   └── providers/ ✅ (moved from lib/providers/)
+│   └── providers/ ✅（`lib/providers/` から移動済み）
 ├── infrastructure/
-│   ├── services/ ✅ (moved from lib/services/)
+│   ├── services/ ✅（`lib/services/` から移動済み）
 │   └── factories/
 │       └── service_locator.dart ✅
 └── presentation/
-    ├── pages/ ✅ (moved from lib/pages/)
-    └── widgets/ ✅ (organized by category)
+    ├── pages/ ✅（`lib/pages/` から移動済み）
+    └── widgets/ ✅（カテゴリ別に整理済み）
         ├── common/
         ├── karaoke/
         └── results/
 ```
 
-## Next Steps
+## 次のステップ (Next Steps)
 
-1. **Immediate**: Fix compilation errors by updating service implementations
-2. **Short-term**: Update all import statements
-3. **Medium-term**: Implement use cases and enhance error handling
-4. **Long-term**: Complete testing and documentation
+1. **短期（Immediate）**: サービス実装を更新してコンパイルエラーを解消する
+2. **短中期（Short-term）**: すべてのインポート文を新しいパスに更新する
+3. **中期（Medium-term）**: ユースケースを実装し、エラーハンドリングを強化する
+4. **長期（Long-term）**: テスト・ドキュメントを完成させる
 
-## Compilation Status
-- ❌ Currently has compilation errors due to interface implementation
-- 🔄 Service locator created but services don't implement interfaces yet
-- 🔄 Import statements need updates throughout the codebase
+## コンパイル状況 (Compilation Status)
+- ❌ インターフェース実装の不足によりコンパイルエラーが発生する可能性あり（未対応）
+- 🔄 Service Locator は作成済み。ただし一部サービスがインターフェースに準拠していない
+- 🔄 プロジェクト全体でインポート更新が必要な箇所が残っている場合あり
 
-## Estimated Completion
-- High Priority Tasks: 4-6 hours
-- Medium Priority Tasks: 2-3 hours  
-- Low Priority Tasks: 1-2 hours
-- **Total**: 7-11 hours of development time
+## 見積時間 (Estimated Completion)
+- 高優先度タスク: 4-6 時間
+- 中優先度タスク: 2-3 時間
+- 低優先度タスク: 1-2 時間
+- **合計目安**: 7-11 時間（環境により変動）
