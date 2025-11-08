@@ -11,15 +11,82 @@ import 'audio_processing_service.dart';
 /// カラオケアプリケーションのピッチ検出と音響分析における最重要コンポーネントです。
 /// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、音響特徴量の抽出を行います。
 class PitchDetectionService implements IAudioProcessingService {
-  /// 標準のピッチ検出メソッド（IAudioProcessingService の実装）
+  /// IAudioProcessingService インターフェースの実装
   /// 
   /// [filePath] WAVファイルのパス
   /// 戻り値: 検出されたピッチ値のリスト（Hz）
   @override
   Future<List<double>> extractPitchFromAudio(String filePath) async {
-    final result = await extractPitchFromWavFile(filePath);
+    final result = await _extractPitchFromAudioInternal(
+      sourcePath: filePath,
+      isAsset: false,
+    );
     return result.pitches;
   }
+
+  /// 拡張ピッチ検出メソッド（追加パラメータ対応）
+  /// 
+  /// [sourcePath] WAVファイルのパス
+  /// [isAsset] アセットファイルかどうか
+  /// [referencePitches] 基準ピッチデータ（オプション）
+  Future<AudioAnalysisResult> _extractPitchFromAudioInternal({
+    required String sourcePath,
+    required bool isAsset,
+    List<double>? referencePitches,
+  }) async {
+    initialize();
+
+    try {
+      // WAVファイルのみサポート
+      final isWav = sourcePath.toLowerCase().endsWith('.wav');
+      
+      if (!isWav) {
+        throw PitchDetectionException('WAVファイルのみサポートしています: $sourcePath');
+      }
+
+      // PCMデータを取得
+      Int16List pcmData;
+      if (isAsset) {
+        final audioData = await AudioProcessingService.loadWavFromAsset(sourcePath);
+        pcmData = AudioProcessingService.intListToInt16List(audioData.samples);
+      } else {
+        final audioData = await AudioProcessingService.loadWavFromFile(sourcePath);
+        pcmData = AudioProcessingService.intListToInt16List(audioData.samples);
+      }
+
+      // PCMデータを正規化
+      final normalizedPcm = AudioProcessingService.normalize(pcmData);
+
+      // Int16ListをUint8Listに変換
+      final uint8Pcm = Uint8List.fromList(normalizedPcm.expand((sample) => [
+        sample & 0xFF,        // 下位バイト
+        (sample >> 8) & 0xFF, // 上位バイト
+      ]).toList());
+
+      // ピッチ検出実行（共通ロジック）
+      final pitches = await _analyzePitchFromPcm(uint8Pcm, defaultSampleRate, referencePitches: referencePitches);
+
+      return AudioAnalysisResult(
+        pitches: pitches,
+        sampleRate: defaultSampleRate,
+        createdAt: DateTime.now(),
+        sourceFile: sourcePath,
+      );
+    } catch (e) {
+      throw PitchDetectionException('ピッチ検出に失敗しました: $e');
+    }
+  }
+
+  /// 従来のメソッド（後方互換性）
+  Future<AudioAnalysisResult> extractPitchFromAudio({
+    required String sourcePath,
+    required bool isAsset,
+    List<double>? referencePitches,
+  }) => _extractPitchFromAudioInternal(
+    sourcePath: sourcePath,
+    isAsset: isAsset,
+    referencePitches: referencePitches,
+  );
 
   /// PCMデータを抽出（IAudioProcessingService の実装）
   /// 
@@ -150,7 +217,7 @@ class PitchDetectionService {
   /// コンストラクタ
   /// 
   /// [logger] ログ出力用のインターフェース実装
-  PitchDetectionService({required ILogger logger}) : _logger = logger {
+  PitchDetectionService(ILogger logger) : _logger = logger {
     initialize();
   }
 
