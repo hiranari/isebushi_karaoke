@@ -31,4 +31,9 @@ class ConsoleLogger implements ILogger {
       stderr.writeln('[ERROR] StackTrace: $stackTrace');
     }
   }
+
+  @override
+  void success(String message) {
+    stdout.writeln('[SUCCESS] $message');
+  }
 }

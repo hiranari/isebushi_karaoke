@@ -23,4 +23,9 @@ class DummyLogger implements ILogger {
   void error(String message, [Object? error, StackTrace? stackTrace]) {
     // 何もしない
   }
+  
+  @override
+  void success(String message) {
+    // 何もしない 
+  }
 }

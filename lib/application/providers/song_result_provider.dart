@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../domain/models/song_result.dart';
-import '../../core/utils/debug_logger.dart';
+import '../../domain/interfaces/i_logger.dart';
 import '../../infrastructure/services/scoring_service.dart';
 import '../../infrastructure/services/feedback_service.dart';
+import '../../infrastructure/factories/service_locator.dart';
 
 /// 歌唱結果の状態管理とUIレンダリング制御プロバイダー
 /// 
@@ -98,12 +99,20 @@ import '../../infrastructure/services/feedback_service.dart';
 /// 
 /// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#song-result-provider)
 class SongResultProvider extends ChangeNotifier {
+  // Logger
+  late final ILogger _logger;
+
   SongResult? _currentResult;
   bool _isProcessing = false;
   String _processingStatus = '';
 
   // Phase 3 要件: 段階的な結果表示の状態管理
   ResultDisplayState _displayState = ResultDisplayState.none;
+
+  // コンストラクタ
+  SongResultProvider() {
+    _logger = ServiceLocator().getService<ILogger>();
+  }
 
   /// 現在の歌唱結果
   SongResult? get currentResult => _currentResult;
@@ -160,7 +169,7 @@ class SongResultProvider extends ChangeNotifier {
       _displayState = ResultDisplayState.totalScore;
       
     } catch (e) {
-      DebugLogger.error('歌唱結果の計算中にエラーが発生しました', e);
+      _logger.error('歌唱結果の計算中にエラーが発生しました', e);
       rethrow;
     } finally {
       _setProcessing(false, '');

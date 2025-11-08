@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:path/path.dart' as path;
 import '../../domain/interfaces/i_pitch_verification_service.dart';
 import '../../domain/models/pitch_verification_result.dart';
 
@@ -142,10 +141,12 @@ class VerifyPitchUseCase {
     final baseDir = outputDir ?? './verification_results';
     
     // ファイル名生成（拡張子を除いたベース名 + タイムスタンプ）
-    final baseName = path.basenameWithoutExtension(wavFilePath);
+    final file = File(wavFilePath);
+    final fileName = file.uri.pathSegments.last;
+    final baseName = fileName.contains('.') ? fileName.split('.').first : fileName;
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final fileName = '${baseName}_verification_$timestamp.json';
+    final outputFileName = '${baseName}_verification_$timestamp.json';
     
-    return path.join(baseDir, fileName);
+    return '$baseDir/$outputFileName';
   }
 }

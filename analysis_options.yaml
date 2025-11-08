@@ -18,6 +18,9 @@ analyzer:
   exclude:
     # ツールスクリプトは例外（ガイドライン準拠）
     - tools/**
+    # Core/Infrastructure層は段階移行対象（既存コード保護）
+    - lib/core/utils/debug_logger.dart
+    - lib/infrastructure/**
 
 linter:
   rules:

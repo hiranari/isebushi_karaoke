@@ -5,159 +5,102 @@ import '../../domain/models/audio_analysis_result.dart';
 import '../../domain/interfaces/i_logger.dart';
 import 'audio_processing_service.dart';
 
+/// ハーモニクス分析結果を格納するクラス
+class HarmonicsAnalysisResult {
+  final double fundamentalFrequency;
+  final List<double> harmonics;
+  final List<double> harmonicStrengths;
+  final double confidence;
+  final double snr; // Signal-to-Noise Ratio
+
+  const HarmonicsAnalysisResult({
+    required this.fundamentalFrequency,
+    required this.harmonics,
+    required this.harmonicStrengths,
+    required this.confidence,
+    required this.snr,
+  });
+}
+
+/// ピッチ検出に関する例外クラス
+/// 
+/// ピッチ検出処理で発生する例外を表現します。
+/// 不正なファイル形式、検出失敗、サポート外の機能などで使用します。
+class PitchDetectionException implements Exception {
+  final String message;
+  const PitchDetectionException(this.message);
+
+  @override
+  String toString() => 'PitchDetectionException: $message';
+}
+
 /// 高精度ピッチ検出・音響分析サービス
 /// 
 /// カラオケアプリケーションの音響分析における最重要コンポーネントです。
 /// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、
 /// 音響特徴量の抽出を高精度で実行します。
 /// 
-/// アーキテクチャ位置:
-/// ```
-/// Audio Input (Microphone)
-///     ↓ (Raw PCM Data)
-/// Infrastructure層 ← PitchDetectionService
-///     ↓ (Pitch Data + Analysis)
-/// Domain層 (Pitch Models, Analysis Results)
-///     ↓ (Structured Data)
-/// Application層 (Business Logic)
-/// ```
-/// 
-/// 中核責任:
-/// - リアルタイム基本周波数(F0)検出
-/// - ピッチ軌跡の連続性保証
-/// - 音響特徴量の包括的抽出
-/// - 無音・有音区間の自動セグメンテーション
-/// - 音響分析結果の構造化
-/// 
-/// ピッチ検出アルゴリズム:
-/// ```
-/// 音声入力 (PCM Data)
-///     ↓
-/// 1. 前処理フェーズ
-///    ├── ウィンドウ関数適用 (Hanning/Hamming)
-///    ├── プリエンファシス処理
-///    ├── DCオフセット除去
-///    └── 振幅正規化
-///     ↓
-/// 2. 周波数解析
-///    ├── FFT変換 (4096点)
-///    ├── スペクトラム計算
-///    ├── ケプストラム分析
-///    └── オートコリレーション
-///     ↓
-/// 3. F0推定
-///    ├── ピーク検出アルゴリズム
-///    ├── ハーモニクス解析
-///    ├── 候補周波数評価
-///    └── 最適F0選択
-///     ↓
-/// 4. 後処理・品質向上
-///    ├── メディアンフィルタ
-///    ├── 連続性チェック
-///    ├── 異常値除去
-///    └── 信頼度評価
-/// ```
-/// 
 /// 検出範囲と精度:
-/// - **検出範囲**: 80Hz - 600Hz (人声の実用範囲をカバー)
+/// - **検出範囲**: 60Hz - 1000Hz（C2からハイソプラノまでカバー）
 /// - **周波数分解能**: ~1.08Hz (@44.1kHz, 4096サンプル)
 /// - **時間分解能**: ~93ms (4096サンプル窓)
 /// - **精度**: ±0.5セント (理論値)
 /// 
-/// 主要機能群:
-/// 1. **リアルタイムピッチ検出**
-///    - 連続音声ストリームからのF0抽出
-///    - 低レイテンシ処理 (< 100ms)
-///    - 適応的閾値調整
+/// 使用例:
+/// ```dart
+/// final service = PitchDetectionService(logger: logger);
+/// service.initialize();
 /// 
-/// 2. **バッチ音響分析**
-///    - 完全な音声ファイルの一括解析
-///    - 高精度ピッチ軌跡生成
-///    - 統計的特徴量計算
+/// final result = await service.extractPitchFromAudio(
+///   sourcePath: 'audio.wav',
+///   isAsset: false,
+/// );
 /// 
-/// 3. **品質評価**
-///    - ピッチ検出信頼度スコア
-///    - S/N比推定
-///    - 有音/無音判定
+/// final stats = service.getPitchStatistics(result.pitches);
+/// print('平均ピッチ: ${stats['average']} Hz');
+/// ```
+/// ピッチ検出サービス
+/// 
+/// カラオケアプリケーションの音響分析における最重要コンポーネントです。
+/// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、
+/// 音響特徴量の抽出を高精度で実行します。
+/// 
+/// 検出範囲と精度:
+/// - **検出範囲**: 60Hz - 1000Hz（C2からハイソプラノまでカバー）
+/// - **周波数分解能**: ~1.08Hz (@44.1kHz, 4096サンプル)
+/// - **時間分解能**: ~93ms (4096サンプル窓)
+/// - **精度**: ±0.5セント (理論値)
 /// 
 /// 使用例:
 /// ```dart
-/// // サービス初期化
-/// final pitchService = ServiceLocator.instance.get<PitchDetectionService>();
-/// pitchService.initialize();
+/// final service = PitchDetectionService(logger: logger);
+/// service.initialize();
 /// 
-/// // リアルタイムピッチ検出
-/// final pitchData = await pitchService.detectPitchFromPcm(
-///   pcmData,
-///   sampleRate: 44100,
+/// final result = await service.extractPitchFromAudio(
+///   sourcePath: 'audio.wav',
+///   isAsset: false,
 /// );
-/// print('検出ピッチ: ${pitchData.frequency} Hz');
 /// 
-/// // 音声ファイルの包括分析
-/// final analysis = await pitchService.analyzeAudioFile(audioPath);
-/// print('平均ピッチ: ${analysis.averagePitch} Hz');
-/// print('ピッチ標準偏差: ${analysis.pitchStdDev} Hz');
+/// final stats = service.getPitchStatistics(result.pitches);
+/// print('平均ピッチ: ${stats['average']} Hz');
 /// ```
-/// 
-/// パフォーマンス最適化:
-/// - **アルゴリズム最適化**: 高速FFT、効率的相関計算
-/// - **メモリ管理**: バッファプールによる再利用
-/// - **並列処理**: マルチコア活用による高速化
-/// - **適応処理**: 動的パラメータ調整
-/// 
-/// エラーハンドリング:
-/// - 無音区間での適切な処理
-/// - ノイズ大時のロバスト性
-/// - 異常ピッチ値の検出と除去
-/// - メモリ不足時の優雅な劣化
-/// 
-/// 品質保証:
-/// - 単体テスト: 既知周波数での精度検証
-/// - 統合テスト: 実音声での検出性能
-/// - ベンチマークテスト: 処理速度測定
-/// - 回帰テスト: アルゴリズム変更時の影響確認
-/// 
-/// 設定パラメータ:
-/// - defaultSampleRate: 44.1kHz (標準)
-/// - defaultBufferSize: 4096サンプル
-/// - minPitchHz: 65Hz (C2対応・低音域拡張)
-/// - maxPitchHz: 1000Hz (女性高音域対応・実用性向上)
-/// 
-/// 依存ライブラリ:
-/// - pitch_detector_dart: 高精度ピッチ検出アルゴリズム
-/// - dart:math: 数学関数とFFT処理
-/// - dart:typed_data: 効率的数値配列処理
-/// 
-/// 将来拡張計画:
-/// - 機械学習ベースピッチ検出
-/// - マルチピッチ検出 (和音対応)
-/// - 感情・表現解析
-/// - 楽器音の高精度検出
-/// - GPUアクセラレーション
-/// 
-/// 設計原則:
-/// - Single Responsibility: ピッチ検出に特化
-/// - Open/Closed: 新しい検出アルゴリズムの追加が容易
-/// - Liskov Substitution: インターフェース実装の交換可能性
-/// - Interface Segregation: 用途別メソッドの分離
-/// - Dependency Inversion: 抽象化への依存
-/// 
-/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#pitch-detection-service)
 class PitchDetectionService {
+  // 定数定義
   static const int defaultSampleRate = 44100;
   static const int defaultBufferSize = 4096;
-  static const double minPitchHz = 65.0;   // C2対応のため60Hzに拡張（65.0→60.0）- B1も含めて安全マージン確保
-  static const double maxPitchHz = 1000.0; // 女性高音域対応のため1000Hzに拡張（600.0→1000.0）
+  static const double minPitchHz = 60.0;   // C2音の検出をサポート（B1音まで）
+  static const double maxPitchHz = 1000.0; // ハイソプラノの最高音域まで対応
 
+  // インスタンス変数
   final ILogger _logger;
   bool _isInitialized = false;
 
-  /// PitchDetectionService のコンストラクタ
+  /// コンストラクタ
   /// 
   /// [logger] ログ出力用のインターフェース実装
-  PitchDetectionService({
-    required ILogger logger,
-  }) : _logger = logger;
+  PitchDetectionService({required ILogger logger}) : _logger = logger {
+    initialize();
+  }
 
   /// PitchDetectionServiceの初期化
   void initialize() {
@@ -584,169 +527,7 @@ class PitchDetectionService {
 
 }
 
-/// ピッチ検出に関する例外クラス
-class PitchDetectionException implements Exception {
-  final String message;
-  const PitchDetectionException(this.message);
 
-  @override
-  String toString() => 'PitchDetectionException: $message';
-}
-
-
-/// 高精度ピッチ検出・音響分析サービス
-/// 
-/// カラオケアプリケーションの音響分析における最重要コンポーネントです。
-/// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、
-/// 音響特徴量の抽出を高精度で実行します。
-/// 
-/// アーキテクチャ位置:
-/// ```
-/// Audio Input (Microphone)
-///     ↓ (Raw PCM Data)
-/// Infrastructure層 ← PitchDetectionService
-///     ↓ (Pitch Data + Analysis)
-/// Domain層 (Pitch Models, Analysis Results)
-///     ↓ (Structured Data)
-/// Application層 (Business Logic)
-/// ```
-/// 
-/// 中核責任:
-/// - リアルタイム基本周波数(F0)検出
-/// - ピッチ軌跡の連続性保証
-/// - 音響特徴量の包括的抽出
-/// - 無音・有音区間の自動セグメンテーション
-/// - 音響分析結果の構造化
-/// 
-/// ピッチ検出アルゴリズム:
-/// ```
-/// 音声入力 (PCM Data)
-///     ↓
-/// 1. 前処理フェーズ
-///    ├── ウィンドウ関数適用 (Hanning/Hamming)
-///    ├── プリエンファシス処理
-///    ├── DCオフセット除去
-///    └── 振幅正規化
-///     ↓
-/// 2. 周波数解析
-///    ├── FFT変換 (4096点)
-///    ├── スペクトラム計算
-///    ├── ケプストラム分析
-///    └── オートコリレーション
-///     ↓
-/// 3. F0推定
-///    ├── ピーク検出アルゴリズム
-///    ├── ハーモニクス解析
-///    ├── 候補周波数評価
-///    └── 最適F0選択
-///     ↓
-/// 4. 後処理・品質向上
-///    ├── メディアンフィルタ
-///    ├── 連続性チェック
-///    ├── 異常値除去
-///    └── 信頼度評価
-/// ```
-/// 
-/// 検出範囲と精度:
-/// - **検出範囲**: 80Hz - 600Hz (人声の実用範囲をカバー)
-/// - **周波数分解能**: ~1.08Hz (@44.1kHz, 4096サンプル)
-/// - **時間分解能**: ~93ms (4096サンプル窓)
-/// - **精度**: ±0.5セント (理論値)
-/// 
-/// 主要機能群:
-/// 1. **リアルタイムピッチ検出**
-///    - 連続音声ストリームからのF0抽出
-///    - 低レイテンシ処理 (< 100ms)
-///    - 適応的閾値調整
-/// 
-/// 2. **バッチ音響分析**
-///    - 完全な音声ファイルの一括解析
-///    - 高精度ピッチ軌跡生成
-///    - 統計的特徴量計算
-/// 
-/// 3. **品質評価**
-///    - ピッチ検出信頼度スコア
-///    - S/N比推定
-///    - 有音/無音判定
-/// 
-/// 使用例:
-/// ```dart
-/// // サービス初期化
-/// final pitchService = ServiceLocator.instance.get<PitchDetectionService>();
-/// pitchService.initialize();
-/// 
-/// // リアルタイムピッチ検出
-/// final pitchData = await pitchService.detectPitchFromPcm(
-///   pcmData,
-///   sampleRate: 44100,
-/// );
-/// print('検出ピッチ: ${pitchData.frequency} Hz');
-/// 
-/// // 音声ファイルの包括分析
-/// final analysis = await pitchService.analyzeAudioFile(audioPath);
-/// print('平均ピッチ: ${analysis.averagePitch} Hz');
-/// print('ピッチ標準偏差: ${analysis.pitchStdDev} Hz');
-/// ```
-/// 
-/// パフォーマンス最適化:
-/// - **アルゴリズム最適化**: 高速FFT、効率的相関計算
-/// - **メモリ管理**: バッファプールによる再利用
-/// - **並列処理**: マルチコア活用による高速化
-/// - **適応処理**: 動的パラメータ調整
-/// 
-/// エラーハンドリング:
-/// - 無音区間での適切な処理
-/// - ノイズ大時のロバスト性
-/// - 異常ピッチ値の検出と除去
-/// - メモリ不足時の優雅な劣化
-/// 
-/// 品質保証:
-/// - 単体テスト: 既知周波数での精度検証
-/// - 統合テスト: 実音声での検出性能
-/// - ベンチマークテスト: 処理速度測定
-/// - 回帰テスト: アルゴリズム変更時の影響確認
-/// 
-/// 設定パラメータ:
-/// - defaultSampleRate: 44.1kHz (標準)
-/// - defaultBufferSize: 4096サンプル
-/// - minPitchHz: 65Hz (C2対応・低音域拡張)
-/// - maxPitchHz: 1000Hz (女性高音域対応・実用性向上)
-/// 
-/// 依存ライブラリ:
-/// - pitch_detector_dart: 高精度ピッチ検出アルゴリズム
-/// - dart:math: 数学関数とFFT処理
-/// - dart:typed_data: 効率的数値配列処理
-/// 
-/// 将来拡張計画:
-/// - 機械学習ベースピッチ検出
-/// - マルチピッチ検出 (和音対応)
-/// - 感情・表現解析
-/// - 楽器音の高精度検出
-/// - GPUアクセラレーション
-/// 
-/// 設計原則:
-/// - Single Responsibility: ピッチ検出に特化
-/// - Open/Closed: 新しい検出アルゴリズムの追加が容易
-/// - Liskov Substitution: インターフェース実装の交換可能性
-/// - Interface Segregation: 用途別メソッドの分離
-/// - Dependency Inversion: 抽象化への依存
-/// 
-/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#pitch-detection-service)
-class PitchDetectionService {
-  static const int defaultSampleRate = 44100;
-  static const int defaultBufferSize = 4096;
-  static const double minPitchHz = 60.0;   // C2対応のため60Hzに拡張（65.0→60.0）- B1も含めて安全マージン確保
-  static const double maxPitchHz = 1000.0; // 女性高音域対応のため1000Hzに拡張（600.0→1000.0）
-
-  final ILogger _logger;
-  bool _isInitialized = false;
-
-  /// PitchDetectionService のコンストラクタ
-  /// 
-  /// [logger] ログ出力用のインターフェース実装
-  PitchDetectionService({
-    required ILogger logger,
-  }) : _logger = logger;
 
   /// PitchDetectionServiceの初期化
   void initialize() {
@@ -845,7 +626,7 @@ class PitchDetectionService {
       
       final detector = PitchDetector(
         audioSampleRate: sampleRate.toDouble(),
-        bufferSize: 1024, // 2048から1024に減少（より細かい分析）
+        bufferSize: _calculateOptimalBufferSize(sampleRate, referencePitches), // 🎯 動的バッファサイズ計算
       );
 
       final pitches = <double>[];
@@ -876,7 +657,7 @@ class PitchDetectionService {
           // ピッチ検出API：Uint8Listバッファからピッチを検出
           final result = await detector.getPitchFromIntBuffer(chunk);
           
-          // より柔軟なピッチ検出とオクターブ補正
+          // より柔軟なピッチ検出とハーモニクス分析による補正
           if (result.pitched && result.probability > 0.1) {
             double detectedPitch = result.pitch;
             
@@ -887,10 +668,23 @@ class PitchDetectionService {
               detectedPitch = detectedPitch / 338.0;
             }
             
+            // 🎯 新機能: ハーモニクス分析による基本周波数特定
+            final harmonicsResult = await _analyzeHarmonics(chunk, sampleRate, detectedPitch);
+            
+            // ハーモニクス分析の信頼度が高い場合は、その結果を使用
+            if (harmonicsResult.confidence > 0.6) {
+              detectedPitch = harmonicsResult.fundamentalFrequency;
+            }
+            
             double originalPitch = detectedPitch;
             
-            // オクターブ補正を使用
-            double correctedPitch = correctOctave(detectedPitch, null);
+            // オクターブ補正を使用（ハーモニクス情報も考慮）
+            double correctedPitch = evaluateMultipleOctaveCandidates(
+              detectedPitch, 
+              null, 
+              harmonicsResult,
+              context: pitches.length > 5 ? pitches.sublist(pitches.length - 5) : null,
+            );
             
             // 調整後のピッチが範囲内の場合のみ採用
             if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
@@ -950,6 +744,177 @@ class PitchDetectionService {
       // エラーが発生した場合は空のリストを返す
       return [];
     }
+  }
+
+  /// 🎯 低音域特化: 動的バッファサイズ計算
+  /// 
+  /// 基準ピッチの分析により最適なバッファサイズを決定します。
+  /// C2（65Hz、周期15ms）の検出に最適化された解析窓長を設定します。
+  /// 
+  /// [sampleRate] サンプリングレート
+  /// [referencePitches] 基準ピッチデータ（分析用）
+  /// 戻り値: 最適なバッファサイズ
+  int _calculateOptimalBufferSize(int sampleRate, List<double>? referencePitches) {
+    // デフォルトサイズ（中域用）
+    int defaultSize = 1024;
+    
+    if (referencePitches == null || referencePitches.isEmpty) {
+      return defaultSize;
+    }
+    
+    // 基準ピッチの分析
+    final validPitches = referencePitches.where((p) => p > 0).toList();
+    if (validPitches.isEmpty) {
+      return defaultSize;
+    }
+    
+    // 最低周波数を検出
+    final minPitch = validPitches.reduce(math.min);
+    final maxPitch = validPitches.reduce(math.max);
+    final avgPitch = validPitches.reduce((a, b) => a + b) / validPitches.length;
+    
+    // 低音域判定（C2-C3域: 65-130Hz）
+    bool hasLowFreq = minPitch < 80.0 || avgPitch < 120.0;
+    bool hasVeryLowFreq = minPitch < 70.0; // C2域
+    
+    // 高音域判定（C5以上: 500Hz+）
+    bool hasHighFreq = maxPitch > 400.0 || avgPitch > 300.0;
+    
+    int optimalSize;
+    
+    if (hasVeryLowFreq) {
+      // C2域対応: より大きなバッファで長時間解析
+      optimalSize = 2048; // 約46ms @ 44.1kHz
+      _logger.debug('バッファサイズ: ${optimalSize} (C2域対応, 最低${minPitch.toStringAsFixed(1)}Hz)');
+    } else if (hasLowFreq) {
+      // 低音域対応: 中程度のバッファ
+      optimalSize = 1536; // 約35ms @ 44.1kHz
+      _logger.debug('バッファサイズ: ${optimalSize} (低音域対応, 最低${minPitch.toStringAsFixed(1)}Hz)');
+    } else if (hasHighFreq) {
+      // 高音域対応: 小さなバッファで高時間分解能
+      optimalSize = 512; // 約12ms @ 44.1kHz
+      _logger.debug('バッファサイズ: ${optimalSize} (高音域対応, 最高${maxPitch.toStringAsFixed(1)}Hz)');
+    } else {
+      // 中域: バランス型
+      optimalSize = defaultSize;
+      _logger.debug('バッファサイズ: ${optimalSize} (中域バランス型, 平均${avgPitch.toStringAsFixed(1)}Hz)');
+    }
+    
+    return optimalSize;
+  }
+
+  /// 🎯 複数オクターブ候補評価による最適解選択
+  /// 
+  /// 複数のオクターブ候補を音楽理論ベースで評価し、
+  /// 最も適切な基本周波数を選択します。
+  /// 
+  /// [detectedPitch] 検出されたピッチ
+  /// [referencePitch] 参照ピッチ（null可）
+  /// [harmonicsResult] ハーモニクス分析結果
+  /// [context] 評価コンテキスト（前後のピッチ情報など）
+  /// 戻り値: 最適なピッチ
+  double evaluateMultipleOctaveCandidates(
+    double detectedPitch, 
+    double? referencePitch,
+    HarmonicsAnalysisResult harmonicsResult,
+    {List<double>? context}
+  ) {
+    // 候補生成：±3オクターブの範囲
+    final candidates = <double>[];
+    
+    // 基本候補
+    candidates.add(detectedPitch);
+    
+    // オクターブ候補
+    for (int octave = -3; octave <= 3; octave++) {
+      if (octave == 0) continue; // 既に追加済み
+      final candidate = detectedPitch * math.pow(2, octave);
+      if (candidate >= 30.0 && candidate <= 2000.0) { // 実用範囲
+        candidates.add(candidate);
+      }
+    }
+    
+    // ハーモニクス分析結果からの候補
+    if (harmonicsResult.confidence > 0.5) {
+      candidates.add(harmonicsResult.fundamentalFrequency);
+    }
+    
+    // 各候補をスコア評価
+    double bestScore = -1.0;
+    double bestCandidate = detectedPitch;
+    
+    for (final candidate in candidates) {
+      final score = _scorePitchCandidate(
+        candidate, 
+        referencePitch, 
+        harmonicsResult, 
+        context: context
+      );
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestCandidate = candidate;
+      }
+    }
+    
+    return bestCandidate;
+  }
+
+  /// ピッチ候補のスコア評価
+  /// 
+  /// 音楽理論、ハーモニクス分析、コンテキスト情報を総合して
+  /// ピッチ候補の適切さをスコア化します。
+  /// 
+  /// [candidate] 評価対象のピッチ候補
+  /// [referencePitch] 参照ピッチ
+  /// [harmonicsResult] ハーモニクス分析結果
+  /// [context] 前後のピッチ情報
+  /// 戻り値: スコア（0.0-1.0）
+  double _scorePitchCandidate(
+    double candidate,
+    double? referencePitch, 
+    HarmonicsAnalysisResult harmonicsResult,
+    {List<double>? context}
+  ) {
+    double score = 0.0;
+    
+    // 1. 範囲適合性（0.3重み）
+    if (candidate >= minPitchHz && candidate <= maxPitchHz) {
+      score += 0.3;
+    } else if (candidate >= 30.0 && candidate <= 2000.0) {
+      score += 0.15; // 拡張範囲での部分点
+    }
+    
+    // 2. ハーモニクス整合性（0.25重み）
+    if (harmonicsResult.confidence > 0.1) {
+      final harmonicsMatch = 1.0 - math.min(1.0, 
+        (candidate - harmonicsResult.fundamentalFrequency).abs() / harmonicsResult.fundamentalFrequency);
+      score += 0.25 * harmonicsMatch * harmonicsResult.confidence;
+    }
+    
+    // 3. 参照ピッチとの整合性（0.25重み）
+    if (referencePitch != null && referencePitch > 0) {
+      final ratio = candidate / referencePitch;
+      final logRatio = math.log(ratio) / math.ln2; // オクターブ単位
+      final octaveDistance = (logRatio - logRatio.round()).abs();
+      final referenceMatch = math.exp(-octaveDistance * 5); // 距離に基づく減衰
+      score += 0.25 * referenceMatch;
+    }
+    
+    // 4. コンテキスト連続性（0.2重み）
+    if (context != null && context.isNotEmpty) {
+      final validContext = context.where((p) => p > 0).toList();
+      if (validContext.isNotEmpty) {
+        final avgContext = validContext.reduce((a, b) => a + b) / validContext.length;
+        final contextRatio = candidate / avgContext;
+        final contextLogRatio = math.log(contextRatio) / math.ln2;
+        final contextDistance = (contextLogRatio - contextLogRatio.round()).abs();
+        final contextMatch = math.exp(-contextDistance * 3);
+        score += 0.2 * contextMatch;
+      }
+    }
+    
+    return math.min(1.0, score);
   }
 
   /// チャンクの音量レベルを計算
@@ -1047,6 +1012,270 @@ class PitchDetectionService {
       'standardDeviation': math.sqrt(variance),
       'validRatio': validPitches.length / pitches.length,
     };
+  }
+
+  /// 🎯 新機能: ハーモニクス分析による基本周波数特定
+  /// 
+  /// スペクトラム解析を用いて基本周波数とハーモニクスを区別し、
+  /// より正確な基本周波数を特定します。
+  /// 
+  /// [chunk] 音声データチャンク
+  /// [sampleRate] サンプリングレート
+  /// [candidatePitch] 候補ピッチ（初期推定値）
+  /// 戻り値: ハーモニクス分析結果
+  Future<HarmonicsAnalysisResult> _analyzeHarmonics(
+    Uint8List chunk, 
+    int sampleRate, 
+    double candidatePitch
+  ) async {
+    try {
+      // PCMデータを浮動小数点配列に変換
+      final samples = <double>[];
+      for (int i = 0; i < chunk.length - 1; i += 2) {
+        final sample = (chunk[i + 1] << 8) | chunk[i]; // Little Endian
+        final normalizedSample = (sample > 32767 ? sample - 65536 : sample) / 32768.0;
+        samples.add(normalizedSample);
+      }
+
+      if (samples.length < 64) {
+        // データが不十分な場合はデフォルト結果を返す
+        return HarmonicsAnalysisResult(
+          fundamentalFrequency: candidatePitch,
+          harmonics: [],
+          harmonicStrengths: [],
+          confidence: 0.0,
+          snr: 0.0,
+        );
+      }
+
+      // FFTサイズを決定（2の累乗で、サンプル数以下）
+      int fftSize = 256;
+      while (fftSize <= samples.length && fftSize < 2048) {
+        fftSize *= 2;
+      }
+      fftSize = math.min(fftSize ~/ 2, samples.length);
+
+      // ウィンドウ関数（ハミング窓）を適用
+      final windowedSamples = _applyHammingWindow(samples.take(fftSize).toList());
+
+      // 簡易FFTによるスペクトラム解析
+      final spectrum = _computeSpectrum(windowedSamples, sampleRate);
+      
+      // ハーモニクスの解析
+      final harmonicsResult = _findFundamentalFromHarmonics(spectrum, candidatePitch, sampleRate);
+
+      return harmonicsResult;
+    } catch (e) {
+      // エラー時はデフォルト結果を返す
+      return HarmonicsAnalysisResult(
+        fundamentalFrequency: candidatePitch,
+        harmonics: [],
+        harmonicStrengths: [],
+        confidence: 0.0,
+        snr: 0.0,
+      );
+    }
+  }
+
+  /// ハミング窓関数を適用
+  List<double> _applyHammingWindow(List<double> samples) {
+    final windowed = <double>[];
+    final n = samples.length;
+    
+    for (int i = 0; i < n; i++) {
+      final window = 0.54 - 0.46 * math.cos(2 * math.pi * i / (n - 1));
+      windowed.add(samples[i] * window);
+    }
+    
+    return windowed;
+  }
+
+  /// 簡易スペクトラム計算（DFTベース）
+  List<double> _computeSpectrum(List<double> samples, int sampleRate) {
+    final n = samples.length;
+    final spectrum = <double>[];
+    
+    // 周波数分解能
+    final freqResolution = sampleRate / n;
+    
+    // 関心のある周波数範囲のみ計算（計算量削減）
+    final maxFreq = math.min(1000.0, sampleRate / 2);
+    final maxBin = (maxFreq / freqResolution).floor();
+    
+    for (int k = 0; k < maxBin; k++) {
+      double real = 0.0;
+      double imag = 0.0;
+      
+      for (int i = 0; i < n; i++) {
+        final angle = -2 * math.pi * k * i / n;
+        real += samples[i] * math.cos(angle);
+        imag += samples[i] * math.sin(angle);
+      }
+      
+      final magnitude = math.sqrt(real * real + imag * imag);
+      spectrum.add(magnitude);
+    }
+    
+    return spectrum;
+  }
+
+  /// スペクトラムからハーモニクス解析により基本周波数を特定
+  HarmonicsAnalysisResult _findFundamentalFromHarmonics(
+    List<double> spectrum, 
+    double candidatePitch, 
+    int sampleRate
+  ) {
+    final freqResolution = sampleRate / spectrum.length / 2;
+    
+    // 候補周波数の範囲を設定（候補の1/4から4倍まで）
+    final minFundamental = math.max(candidatePitch / 4, 50.0);
+    final maxFundamental = math.min(candidatePitch * 4, 500.0);
+    
+    double bestFundamental = candidatePitch;
+    double bestConfidence = 0.0;
+    List<double> bestHarmonics = [];
+    List<double> bestStrengths = [];
+    double bestSnr = 0.0;
+    
+    // 基本周波数の候補を段階的に評価
+    final step = freqResolution;
+    for (double f0 = minFundamental; f0 <= maxFundamental; f0 += step) {
+      final result = _evaluateHarmonicSeries(spectrum, f0, freqResolution);
+      
+      if (result['confidence'] > bestConfidence) {
+        bestFundamental = f0;
+        bestConfidence = result['confidence'];
+        bestHarmonics = result['harmonics'] as List<double>;
+        bestStrengths = result['strengths'] as List<double>;
+        bestSnr = result['snr'] as double;
+      }
+    }
+    
+    return HarmonicsAnalysisResult(
+      fundamentalFrequency: bestFundamental,
+      harmonics: bestHarmonics,
+      harmonicStrengths: bestStrengths,
+      confidence: bestConfidence,
+      snr: bestSnr,
+    );
+  }
+
+  /// 特定の基本周波数に対するハーモニクス系列を評価
+  Map<String, dynamic> _evaluateHarmonicSeries(
+    List<double> spectrum, 
+    double f0, 
+    double freqResolution
+  ) {
+    final harmonics = <double>[];
+    final strengths = <double>[];
+    double totalHarmonicEnergy = 0.0;
+    double totalEnergy = 0.0;
+    
+    // 全スペクトラムエネルギーを計算
+    for (final magnitude in spectrum) {
+      totalEnergy += magnitude * magnitude;
+    }
+    
+    // 最大8次までのハーモニクスを検査
+    for (int harmonic = 1; harmonic <= 8; harmonic++) {
+      final targetFreq = f0 * harmonic;
+      final targetBin = (targetFreq / freqResolution).round();
+      
+      if (targetBin >= spectrum.length) break;
+      
+      // ピーク検出（±2binの範囲）
+      double maxMagnitude = 0.0;
+      double actualFreq = targetFreq;
+      
+      for (int offset = -2; offset <= 2; offset++) {
+        final bin = targetBin + offset;
+        if (bin >= 0 && bin < spectrum.length) {
+          if (spectrum[bin] > maxMagnitude) {
+            maxMagnitude = spectrum[bin];
+            actualFreq = bin * freqResolution;
+          }
+        }
+      }
+      
+      if (maxMagnitude > 0) {
+        harmonics.add(actualFreq);
+        strengths.add(maxMagnitude);
+        totalHarmonicEnergy += maxMagnitude * maxMagnitude;
+      }
+    }
+    
+    // 信頼度計算（ハーモニクス強度の比率とピークの明確さ）
+    double confidence = 0.0;
+    double snr = 0.0;
+    
+    if (harmonics.isNotEmpty && totalEnergy > 0) {
+      // SNR計算
+      snr = totalHarmonicEnergy / (totalEnergy - totalHarmonicEnergy + 1e-10);
+      
+      // 基本周波数の強度重み
+      final fundamentalWeight = strengths.isNotEmpty ? strengths[0] : 0.0;
+      
+      // ハーモニクス系列の整合性
+      double harmonicConsistency = 0.0;
+      if (harmonics.length >= 2) {
+        for (int i = 1; i < harmonics.length; i++) {
+          final expectedRatio = i + 1;
+          final actualRatio = harmonics[i] / harmonics[0];
+          final ratioError = (actualRatio - expectedRatio).abs() / expectedRatio;
+          harmonicConsistency += math.exp(-ratioError * 10); // 誤差に基づく減衰関数
+        }
+        harmonicConsistency /= (harmonics.length - 1);
+      }
+      
+      // 総合信頼度（複数の要素を組み合わせ）
+      confidence = (fundamentalWeight / 1000.0) * 0.4 + 
+                   math.min(snr, 1.0) * 0.3 + 
+                   harmonicConsistency * 0.3;
+    }
+    
+    return {
+      'harmonics': harmonics,
+      'strengths': strengths,
+      'confidence': math.min(confidence, 1.0),
+      'snr': snr,
+    };
+  }
+
+  /// ハーモニクス情報を考慮した改良オクターブ補正
+  /// 
+  /// [detectedPitch] 検出されたピッチ
+  /// [referencePitch] 参照ピッチ（null可）
+  /// [harmonicsResult] ハーモニクス分析結果
+  /// 戻り値: 補正されたピッチ
+  double correctOctaveWithHarmonics(
+    double detectedPitch, 
+    double? referencePitch, 
+    HarmonicsAnalysisResult harmonicsResult
+  ) {
+    // ハーモニクス分析の信頼度が高い場合は、その結果を優先
+    if (harmonicsResult.confidence > 0.7) {
+      double harmonicsPitch = harmonicsResult.fundamentalFrequency;
+      
+      // 基本的な範囲チェック
+      if (harmonicsPitch >= minPitchHz && harmonicsPitch <= maxPitchHz) {
+        return harmonicsPitch;
+      }
+      
+      // 範囲外の場合はオクターブ補正
+      while (harmonicsPitch < minPitchHz && harmonicsPitch > 0) {
+        harmonicsPitch *= 2.0;
+      }
+      while (harmonicsPitch > maxPitchHz) {
+        harmonicsPitch /= 2.0;
+      }
+      
+      if (harmonicsPitch >= minPitchHz && harmonicsPitch <= maxPitchHz) {
+        return harmonicsPitch;
+      }
+    }
+    
+    // フォールバック：従来のオクターブ補正
+    return correctOctave(detectedPitch, referencePitch);
   }
 
   /// 改良されたオクターブ補正メソッド
@@ -1171,13 +1400,4 @@ class PitchDetectionService {
     return defaultPitch;
   }
 
-}
-
-/// ピッチ検出に関する例外クラス
-class PitchDetectionException implements Exception {
-  final String message;
-  const PitchDetectionException(this.message);
-
-  @override
-  String toString() => 'PitchDetectionException: $message';
 }

@@ -14,4 +14,7 @@ abstract class ILogger {
   
   /// エラーレベルのログ出力
   void error(String message, [Object? error, StackTrace? stackTrace]);
+  
+  /// 成功レベルのログ出力
+  void success(String message);
 }

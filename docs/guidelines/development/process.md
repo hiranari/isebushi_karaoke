@@ -1,5 +1,17 @@
 # 開発プロセスガイドライン
 
+## 🚨 **最重要事項: Problems撲滅ポリシー**
+
+**すべての作業で[Problems撲滅ポリシー](./PROBLEMS_ZERO_POLICY.md)の強制遵守が必要です。**
+
+- 🔥 **作業開始前**: `flutter analyze --no-pub` で `No issues found!` 確認必須
+- ⚡ **作業中**: Problems発生時は即座に解決
+- ✅ **作業完了前**: `flutter analyze --no-pub` で `No issues found!` 確認必須
+
+**例外なし。Problems 1個でも残した状態での作業終了・移行は絶対禁止。**
+
+---
+
 ## 🎯 目的
 
 GitHub Copilot Agentモードでの実装において、歯止めの効かない修正を防ぎ、計画的で透明性の高い開発を実現する。

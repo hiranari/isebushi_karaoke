@@ -27,6 +27,8 @@ class PitchVerificationService implements IPitchVerificationService {
     String wavFilePath, {
     bool useCache = true,
   }) async {
+    _logger.info('ピッチ検証開始: $wavFilePath (キャッシュ使用: $useCache)');
+    
     final pitches = await extractReferencePitches(
       wavFilePath,
       useCache: useCache,

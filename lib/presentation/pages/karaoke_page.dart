@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../infrastructure/services/pitch_detection_service.dart';
 import '../../infrastructure/services/pitch_comparison_service.dart';
 import '../../infrastructure/services/pitch_verification_service.dart';
+import '../../infrastructure/factories/service_locator.dart';
 import '../../application/providers/karaoke_session_provider.dart';
 import '../../application/use_cases/verify_pitch_use_case.dart';
 import '../widgets/karaoke/progressive_score_display.dart';
@@ -21,7 +22,7 @@ import '../widgets/debug/debug_info_overlay.dart';
 import '../../core/utils/singer_encoder.dart';
 import '../../core/utils/pitch_debug_helper.dart';
 import '../../domain/models/audio_analysis_result.dart';
-import '../../core/utils/dummy_logger.dart';
+import '../../domain/interfaces/i_logger.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 
@@ -42,10 +43,11 @@ class _KaraokePageState extends State<KaraokePage> {
   // 再生状態の管理
   bool _isPlaying = false;
 
+  // Logger
+  late final ILogger _logger;
+
   // Phase 1サービス（既存機能）
-  final PitchDetectionService _pitchDetectionService = PitchDetectionService(
-    logger: DummyLogger(),
-  );
+  late final PitchDetectionService _pitchDetectionService;
   
   // Phase 3: 新しいアーキテクチャサービス
   late final PitchVerificationService _verificationService;
@@ -70,6 +72,10 @@ class _KaraokePageState extends State<KaraokePage> {
   @override
   void initState() {
     super.initState();
+    
+    // Service Locatorから依存関係を取得
+    _logger = ServiceLocator().getService<ILogger>();
+    _pitchDetectionService = ServiceLocator().getService<PitchDetectionService>();
     
     // Phase 3: 新しいアーキテクチャサービス初期化
     _verificationService = PitchVerificationService(
@@ -292,14 +298,12 @@ class _KaraokePageState extends State<KaraokePage> {
       // 再生を開始
       await _player.play();
       
-      if (mounted) {
-        _showSnackBar('音源再生を開始しました');
-      }
+      _logger.success('音源再生開始完了: $audioFile');
+      _showSnackBar('音源再生を開始しました');
       
     } catch (e) {
-      if (mounted) {
-        _showSnackBar('音源の再生に失敗しました: $e');
-      }
+      _logger.error('音源再生に失敗しました', e);
+      _showSnackBar('音源の再生に失敗しました: $e');
     }
   }
 
@@ -349,6 +353,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
+      _logger.error('録音の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の開始に失敗しました: ${e.toString()}');
       }
@@ -365,6 +370,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // 定期的にピッチを更新するタイマーを使用
       _setupPitchDetectionTimer();
     } catch (e) {
+      _logger.error('リアルタイムピッチ検出の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('リアルタイムピッチ検出の開始に失敗しました: ${e.toString()}');
       }
@@ -495,9 +501,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
     } catch (e) {
       // エラーは無視（スコア計算はオプション機能）
-      if (kDebugMode) {
-        debugPrint('スコア計算エラー: $e');
-      }
+      _logger.error('スコア計算エラー', e);
     }
   }
 
@@ -536,9 +540,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('録音の停止に失敗しました: $e');
-      }
+      _logger.error('録音の停止に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の停止に失敗しました: ${e.toString()}');
       }
@@ -655,6 +657,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
       
     } catch (e) {
+      _logger.error('録音音声の分析に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音音声の分析に失敗しました: ${e.toString()}');
         
@@ -662,13 +665,9 @@ class _KaraokePageState extends State<KaraokePage> {
         final sessionProvider = context.read<KaraokeSessionProvider>();
         if (sessionProvider.recordedPitches.isNotEmpty) {
           _showSnackBar('録音中のデータを使用してスコアを計算します');
-          if (kDebugMode) {
-            debugPrint('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
-          }
+          _logger.info('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
         } else {
-          if (kDebugMode) {
-            debugPrint('録音データが存在しないため、スコア計算を中止します');
-          }
+          _logger.error('録音データが存在しないため、スコア計算を中止します');
           _showSnackBar('録音データが不足しています。もう一度お試しください。');
           return;
         }

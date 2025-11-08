@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isebushi_karaoke/infrastructure/services/pitch_comparison_service.dart';
 import 'package:isebushi_karaoke/infrastructure/logging/console_logger.dart';
+import 'package:flutter/foundation.dart';
 
 void main() {
   final logger = ConsoleLogger();
@@ -201,6 +202,14 @@ void main() {
       logger.debug('安定性: ${finalResult.stability.toStringAsFixed(1)}');
       logger.debug('トレンド: ${finalResult.trend.label}');
       logger.debug('有効データ率: ${(finalResult.validRatio * 100).toStringAsFixed(1)}%');
+
+      debugPrint('=== カラオケセッション結果 ===');
+      debugPrint('平均スコア: ${finalResult.averageScore.toStringAsFixed(1)}');
+      debugPrint('最高スコア: ${finalResult.maxScore.toStringAsFixed(1)}');
+      debugPrint('最低スコア: ${finalResult.minScore.toStringAsFixed(1)}');
+      debugPrint('安定性: ${finalResult.stability.toStringAsFixed(1)}');
+      debugPrint('トレンド: ${finalResult.trend.label}');
+      debugPrint('有効データ率: ${(finalResult.validRatio * 100).toStringAsFixed(1)}%');
     });
   });
 }

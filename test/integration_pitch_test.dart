@@ -1,16 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isebushi_karaoke/core/utils/dummy_logger.dart';
-import 'package:isebushi_karaoke/infrastructure/logging/console_logger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:isebushi_karaoke/infrastructure/services/pitch_detection_service.dart';
+import 'package:isebushi_karaoke/core/utils/debug_file_logger.dart';
+import 'package:isebushi_karaoke/domain/interfaces/i_logger.dart';
 
 void main() {
-  final logger = ConsoleLogger();
-
   group('PitchDetectionService 実音声ファイルテスト', () {
     late PitchDetectionService pitchService;
 
     setUpAll(() {
-      pitchService = PitchDetectionService(logger: DummyLogger());
+      pitchService = PitchDetectionService(logger: DebugFileLogger() as ILogger);
       pitchService.initialize();
     });
 
@@ -26,12 +25,12 @@ void main() {
       
       // 統計情報の取得
       final stats = result.getStatistics();
-      logger.debug('=== Test_improved.wav 解析結果 ===');
-      logger.debug('検出ピッチ数: ${result.pitches.length}');
-      logger.debug('最小ピッチ: ${stats['min']!.toStringAsFixed(1)} Hz');
-      logger.debug('最大ピッチ: ${stats['max']!.toStringAsFixed(1)} Hz');
-      logger.debug('平均ピッチ: ${stats['average']!.toStringAsFixed(1)} Hz');
-      logger.debug('有効データ比率: ${(stats['validRatio']! * 100).toStringAsFixed(1)}%');
+      debugPrint('=== Test_improved.wav 解析結果 ===');
+      debugPrint('検出ピッチ数: ${result.pitches.length}');
+      debugPrint('最小ピッチ: ${stats['min']!.toStringAsFixed(1)} Hz');
+      debugPrint('最大ピッチ: ${stats['max']!.toStringAsFixed(1)} Hz');
+      debugPrint('平均ピッチ: ${stats['average']!.toStringAsFixed(1)} Hz');
+      debugPrint('有効データ比率: ${(stats['validRatio']! * 100).toStringAsFixed(1)}%');
 
       // 合理性チェック
       expect(stats['min']! >= 80.0, true, reason: '最小ピッチは80Hz以上であるべき');
@@ -40,7 +39,7 @@ void main() {
       
       // サンプル値の表示
       final samplePitches = result.pitches.take(10).toList();
-      logger.debug('最初の10個のピッチ値: $samplePitches');
+      debugPrint('最初の10個のピッチ値: $samplePitches');
     });
 
     testWidgets('複数の音声ファイルで一貫性があること', (WidgetTester tester) async {
@@ -56,16 +55,16 @@ void main() {
             isAsset: true,
           );
 
-          logger.debug('\n=== $file の解析結果 ===');
+          debugPrint('\n=== $file の解析結果 ===');
           final stats = result.getStatistics();
-          logger.debug('検出ピッチ数: ${result.pitches.length}');
-          logger.debug('有効データ比率: ${(stats['validRatio']! * 100).toStringAsFixed(1)}%');
+          debugPrint('検出ピッチ数: ${result.pitches.length}');
+          debugPrint('有効データ比率: ${(stats['validRatio']! * 100).toStringAsFixed(1)}%');
 
           // 基本的な妥当性チェック
           expect(result.pitches.isNotEmpty, true, reason: '$file からピッチが検出されるべき');
           
         } catch (e) {
-          logger.debug('$file の処理でエラー: $e');
+          debugPrint('$file の処理でエラー: $e');
           // 一部のファイルでエラーが出ても他のテストは続行
         }
       }
@@ -82,13 +81,13 @@ void main() {
       stopwatch.stop();
       final processingTime = stopwatch.elapsedMilliseconds;
       
-      logger.debug('=== 性能テスト結果 ===');
-      logger.debug('処理時間: ${processingTime}ms');
-      logger.debug('ピッチ数: ${result.pitches.length}');
+      debugPrint('=== 性能テスト結果 ===');
+      debugPrint('処理時間: ${processingTime}ms');
+      debugPrint('ピッチ数: ${result.pitches.length}');
       
       if (result.pitches.isNotEmpty) {
         final avgTimePerPitch = processingTime / result.pitches.length;
-        logger.debug('ピッチあたり処理時間: ${avgTimePerPitch.toStringAsFixed(2)}ms');
+        debugPrint('ピッチあたり処理時間: ${avgTimePerPitch.toStringAsFixed(2)}ms');
         
         // 性能要件（例：5秒以内に完了）
         expect(processingTime < 5000, true, reason: '処理時間は5秒以内であるべき');
@@ -107,8 +106,8 @@ void main() {
         results.add(result.pitches);
       }
 
-      logger.debug('=== 安定性テスト結果 ===');
-      logger.debug('実行回数: ${results.length}');
+      debugPrint('=== 安定性テスト結果 ===');
+      debugPrint('実行回数: ${results.length}');
       
       // 全ての結果が同じ長さであることを確認
       final firstLength = results.first.length;
@@ -129,7 +128,7 @@ void main() {
         }
       }
       
-      logger.debug('✅ 安定性テスト合格');
+      debugPrint('✅ 安定性テスト合格');
     });
   });
 }
