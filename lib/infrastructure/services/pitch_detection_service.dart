@@ -217,7 +217,7 @@ class PitchDetectionService {
   /// コンストラクタ
   /// 
   /// [logger] ログ出力用のインターフェース実装
-  PitchDetectionService(ILogger logger) : _logger = logger {
+  PitchDetectionService({required ILogger logger}) : _logger = logger {
     initialize();
   }
 

@@ -9,7 +9,7 @@ void main() {
     late PitchDetectionService pitchService;
 
     setUpAll(() {
-      pitchService = PitchDetectionService(DebugFileLogger() as ILogger);
+      pitchService = PitchDetectionService(logger: DebugFileLogger() as ILogger);
       pitchService.initialize();
     });
 
