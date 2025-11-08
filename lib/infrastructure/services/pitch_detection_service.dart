@@ -3,7 +3,59 @@ import 'dart:math' as math;
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import '../../domain/models/audio_analysis_result.dart';
 import '../../domain/interfaces/i_logger.dart';
+import '../../domain/interfaces/i_audio_processing_service.dart';
 import 'audio_processing_service.dart';
+
+/// IAudioProcessingService を実装する高精度ピッチ検出サービス
+/// 
+/// カラオケアプリケーションのピッチ検出と音響分析における最重要コンポーネントです。
+/// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、音響特徴量の抽出を行います。
+class PitchDetectionService implements IAudioProcessingService {
+  /// 標準のピッチ検出メソッド（IAudioProcessingService の実装）
+  /// 
+  /// [filePath] WAVファイルのパス
+  /// 戻り値: 検出されたピッチ値のリスト（Hz）
+  @override
+  Future<List<double>> extractPitchFromAudio(String filePath) async {
+    final result = await extractPitchFromWavFile(filePath);
+    return result.pitches;
+  }
+
+  /// PCMデータを抽出（IAudioProcessingService の実装）
+  /// 
+  /// [filePath] WAVファイルのパス
+  /// 戻り値: PCMデータ
+  @override
+  Future<List<int>> extractPcmFromWav(String filePath) async {
+    final pcmData = await AudioProcessingService.extractPcmFromWavFile(filePath);
+    return AudioProcessingService.int16ListToIntList(pcmData);
+  }
+
+  /// WAVファイルの検証（IAudioProcessingService の実装）
+  /// 
+  /// [filePath] WAVファイルのパス
+  /// 戻り値: WAVファイルの場合はtrue
+  @override
+  bool isWavFile(String filePath) {
+    return filePath.toLowerCase().endsWith('.wav');
+  }
+
+  /// 音声ファイルの検証（IAudioProcessingService の実装）
+  /// 
+  /// [filePath] 検証対象のファイルパス
+  /// 戻り値: 有効な音声ファイルの場合はtrue
+  @override
+  Future<bool> validateAudioFile(String filePath) async {
+    try {
+      if (!isWavFile(filePath)) {
+        return false;
+      }
+      await AudioProcessingService.loadWavFromFile(filePath);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
 /// ハーモニクス分析結果を格納するクラス
 class HarmonicsAnalysisResult {
