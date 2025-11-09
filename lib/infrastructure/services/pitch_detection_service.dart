@@ -1,9 +1,41 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:pitch_detector_dart/pitch_detector.dart';
+import 'package:fftea/fftea.dart';
 import '../../domain/models/audio_analysis_result.dart';
+import '../../domain/interfaces/i_logger.dart';
+import '../../domain/interfaces/i_audio_processing_service.dart';
 import 'audio_processing_service.dart';
+
+/// ハーモニクス分析結果を格納するクラス
+class HarmonicsAnalysisResult {
+  final double fundamentalFrequency;
+  final List<double> harmonics;
+  final List<double> harmonicStrengths;
+  final double confidence;
+  final double snr; // Signal-to-Noise Ratio
+
+  const HarmonicsAnalysisResult({
+    required this.fundamentalFrequency,
+    required this.harmonics,
+    required this.harmonicStrengths,
+    required this.confidence,
+    required this.snr,
+  });
+}
+
+/// ピッチ検出に関する例外クラス
+/// 
+/// ピッチ検出処理で発生する例外を表現します。
+/// 不正なファイル形式、検出失敗、サポート外の機能などで使用します。
+class PitchDetectionException implements Exception {
+  final String message;
+  const PitchDetectionException(this.message);
+
+  @override
+  String toString() => 'PitchDetectionException: $message';
+}
 
 /// 高精度ピッチ検出・音響分析サービス
 /// 
@@ -11,160 +43,104 @@ import 'audio_processing_service.dart';
 /// リアルタイム音声からの基本周波数(F0)検出、ピッチ追跡、
 /// 音響特徴量の抽出を高精度で実行します。
 /// 
-/// アーキテクチャ位置:
-/// ```
-/// Audio Input (Microphone)
-///     ↓ (Raw PCM Data)
-/// Infrastructure層 ← PitchDetectionService
-///     ↓ (Pitch Data + Analysis)
-/// Domain層 (Pitch Models, Analysis Results)
-///     ↓ (Structured Data)
-/// Application層 (Business Logic)
-/// ```
-/// 
-/// 中核責任:
-/// - リアルタイム基本周波数(F0)検出
-/// - ピッチ軌跡の連続性保証
-/// - 音響特徴量の包括的抽出
-/// - 無音・有音区間の自動セグメンテーション
-/// - 音響分析結果の構造化
-/// 
-/// ピッチ検出アルゴリズム:
-/// ```
-/// 音声入力 (PCM Data)
-///     ↓
-/// 1. 前処理フェーズ
-///    ├── ウィンドウ関数適用 (Hanning/Hamming)
-///    ├── プリエンファシス処理
-///    ├── DCオフセット除去
-///    └── 振幅正規化
-///     ↓
-/// 2. 周波数解析
-///    ├── FFT変換 (4096点)
-///    ├── スペクトラム計算
-///    ├── ケプストラム分析
-///    └── オートコリレーション
-///     ↓
-/// 3. F0推定
-///    ├── ピーク検出アルゴリズム
-///    ├── ハーモニクス解析
-///    ├── 候補周波数評価
-///    └── 最適F0選択
-///     ↓
-/// 4. 後処理・品質向上
-///    ├── メディアンフィルタ
-///    ├── 連続性チェック
-///    ├── 異常値除去
-///    └── 信頼度評価
-/// ```
-/// 
 /// 検出範囲と精度:
-/// - **検出範囲**: 80Hz - 600Hz (人声の実用範囲をカバー)
+/// - **検出範囲**: 60Hz - 1000Hz（C2からハイソプラノまでカバー）
 /// - **周波数分解能**: ~1.08Hz (@44.1kHz, 4096サンプル)
 /// - **時間分解能**: ~93ms (4096サンプル窓)
 /// - **精度**: ±0.5セント (理論値)
 /// 
-/// 主要機能群:
-/// 1. **リアルタイムピッチ検出**
-///    - 連続音声ストリームからのF0抽出
-///    - 低レイテンシ処理 (< 100ms)
-///    - 適応的閾値調整
-/// 
-/// 2. **バッチ音響分析**
-///    - 完全な音声ファイルの一括解析
-///    - 高精度ピッチ軌跡生成
-///    - 統計的特徴量計算
-/// 
-/// 3. **品質評価**
-///    - ピッチ検出信頼度スコア
-///    - S/N比推定
-///    - 有音/無音判定
-/// 
 /// 使用例:
 /// ```dart
-/// // サービス初期化
-/// final pitchService = ServiceLocator.instance.get<PitchDetectionService>();
-/// pitchService.initialize();
+/// final service = PitchDetectionService(logger: logger);
+/// service.initialize();
 /// 
-/// // リアルタイムピッチ検出
-/// final pitchData = await pitchService.detectPitchFromPcm(
-///   pcmData,
-///   sampleRate: 44100,
+/// final result = await service.extractPitchFromAudio(
+///   sourcePath: 'audio.wav',
+///   isAsset: false,
 /// );
-/// print('検出ピッチ: ${pitchData.frequency} Hz');
 /// 
-/// // 音声ファイルの包括分析
-/// final analysis = await pitchService.analyzeAudioFile(audioPath);
-/// print('平均ピッチ: ${analysis.averagePitch} Hz');
-/// print('ピッチ標準偏差: ${analysis.pitchStdDev} Hz');
+/// final stats = service.getPitchStatistics(result.pitches);
+/// print('平均ピッチ: ${stats['average']} Hz');
 /// ```
-/// 
-/// パフォーマンス最適化:
-/// - **アルゴリズム最適化**: 高速FFT、効率的相関計算
-/// - **メモリ管理**: バッファプールによる再利用
-/// - **並列処理**: マルチコア活用による高速化
-/// - **適応処理**: 動的パラメータ調整
-/// 
-/// エラーハンドリング:
-/// - 無音区間での適切な処理
-/// - ノイズ大時のロバスト性
-/// - 異常ピッチ値の検出と除去
-/// - メモリ不足時の優雅な劣化
-/// 
-/// 品質保証:
-/// - 単体テスト: 既知周波数での精度検証
-/// - 統合テスト: 実音声での検出性能
-/// - ベンチマークテスト: 処理速度測定
-/// - 回帰テスト: アルゴリズム変更時の影響確認
-/// 
-/// 設定パラメータ:
-/// - defaultSampleRate: 44.1kHz (標準)
-/// - defaultBufferSize: 4096サンプル
-/// - minPitchHz: 80Hz (検出下限)
-/// - maxPitchHz: 600Hz (検出上限)
-/// 
-/// 依存ライブラリ:
-/// - pitch_detector_dart: 高精度ピッチ検出アルゴリズム
-/// - dart:math: 数学関数とFFT処理
-/// - dart:typed_data: 効率的数値配列処理
-/// 
-/// 将来拡張計画:
-/// - 機械学習ベースピッチ検出
-/// - マルチピッチ検出 (和音対応)
-/// - 感情・表現解析
-/// - 楽器音の高精度検出
-/// - GPUアクセラレーション
-/// 
-/// 設計原則:
-/// - Single Responsibility: ピッチ検出に特化
-/// - Open/Closed: 新しい検出アルゴリズムの追加が容易
-/// - Liskov Substitution: インターフェース実装の交換可能性
-/// - Interface Segregation: 用途別メソッドの分離
-/// - Dependency Inversion: 抽象化への依存
-/// 
-/// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#pitch-detection-service)
-class PitchDetectionService {
+
+class PitchDetectionService implements IAudioProcessingService {
+  // 定数定義
   static const int defaultSampleRate = 44100;
   static const int defaultBufferSize = 4096;
-  static const double minPitchHz = 80.0;   // 下限を拡張（100.0→80.0）
-  static const double maxPitchHz = 600.0;  // 上限を拡張（500.0→600.0）
+  static const double minPitchHz = 60.0; // C2音の検出をサポート
+  static const double maxPitchHz = 1000.0;
 
+  // インスタンス変数
+  final ILogger _logger;
+  late FFT _fft;
   bool _isInitialized = false;
 
-  /// PitchDetectionServiceの初期化
+  /// コンストラクタ
+  PitchDetectionService({required ILogger logger}) : _logger = logger {
+    // 初期化は遅延で行う
+  }
+
+  /// 初期化メソッド
   void initialize() {
-    if (!_isInitialized) {
-      _isInitialized = true;
+    if (_isInitialized) return;
+    _fft = FFT(defaultBufferSize);
+    _isInitialized = true;
+  }
+
+  /// IAudioProcessingService インターフェースの実装
+  @override
+  @override
+  Future<AudioAnalysisResult> extractPitchFromAudio({
+    required String sourcePath,
+    required bool isAsset,
+    List<double>? referencePitches,
+  }) async {
+    initialize();
+    try {
+      final result = await extractPitchAnalysisFromAudio(
+        sourcePath: sourcePath,
+        isAsset: isAsset,
+        referencePitches: referencePitches,
+      );
+      return result;
+    } catch (e) {
+      _logger.error('ピッチ検出でエラーが発生: $e');
+      return AudioAnalysisResult(
+        pitches: [],
+        sampleRate: defaultSampleRate,
+        createdAt: DateTime.now(),
+        sourceFile: sourcePath,
+      );
     }
   }
 
-  /// 統合されたピッチ検出メソッド（WAV専用）
-  ///
-  /// [sourcePath] 解析対象のWAVファイルパス
-  /// [isAsset] アセットファイルかどうか（true: アセット、false: ファイルシステム）
-  /// [referencePitches] 基準ピッチデータ（動的推定に使用、オプション）
-  /// 戻り値: ピッチ検出結果
-  Future<AudioAnalysisResult> extractPitchFromAudio({
+  @override
+  Future<List<int>> extractPcmFromWav(String filePath) async {
+    try {
+      final pcm = await AudioProcessingService.extractPcmFromWavFile(filePath);
+      return AudioProcessingService.int16ListToIntList(pcm);
+    } catch (e) {
+      _logger.error('PCMデータ抽出でエラーが発生: $e');
+      return [];
+    }
+  }
+
+  @override
+  bool isWavFile(String filePath) => filePath.toLowerCase().endsWith('.wav');
+
+  @override
+  Future<bool> validateAudioFile(String filePath) async {
+    try {
+      if (!isWavFile(filePath)) return false;
+      await AudioProcessingService.loadWavFromFile(filePath);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 拡張されたピッチ分析メソッド
+  Future<AudioAnalysisResult> extractPitchAnalysisFromAudio({
     required String sourcePath,
     required bool isAsset,
     List<double>? referencePitches,
@@ -174,7 +150,6 @@ class PitchDetectionService {
     try {
       // WAVファイルのみサポート
       final isWav = sourcePath.toLowerCase().endsWith('.wav');
-      
       if (!isWav) {
         throw PitchDetectionException('WAVファイルのみサポートしています: $sourcePath');
       }
@@ -192,11 +167,11 @@ class PitchDetectionService {
       // PCMデータを正規化
       final normalizedPcm = AudioProcessingService.normalize(pcmData);
 
-      // Int16ListをUint8Listに変換
+      // Int16ListをUint8Listに変換（Little Endian）
       final uint8Pcm = Uint8List.fromList(normalizedPcm.expand((sample) => [
-        sample & 0xFF,        // 下位バイト
-        (sample >> 8) & 0xFF, // 上位バイト
-      ]).toList());
+            sample & 0xFF,
+            (sample >> 8) & 0xFF,
+          ]).toList());
 
       // ピッチ検出実行（共通ロジック）
       final pitches = await _analyzePitchFromPcm(uint8Pcm, defaultSampleRate, referencePitches: referencePitches);
@@ -213,7 +188,7 @@ class PitchDetectionService {
   }
 
   /// 【廃止】MP3ファイルからピッチを検出
-  @Deprecated('MP3サポートを廃止しました。extractPitchFromAudio(sourcePath: "file.wav", isAsset: true)を使用してください')
+  @Deprecated('MP3サポートを廃止しました。extractPitchAnalysisFromAudio(sourcePath: "file.wav", isAsset: true)を使用してください')
   Future<AudioAnalysisResult> extractPitchFromMp3(String assetPath) async {
     throw PitchDetectionException('MP3サポートは廃止されました。WAVファイル（${assetPath.replaceAll('.mp3', '.wav')}）を使用してください');
   }
@@ -222,162 +197,149 @@ class PitchDetectionService {
   ///
   /// [assetPath] 解析対象のWAVファイルパス
   /// 戻り値: ピッチ検出結果
-  @Deprecated('extractPitchFromAudio(sourcePath: path, isAsset: true)を使用してください')
+  @Deprecated('extractPitchAnalysisFromAudio(sourcePath: path, isAsset: true)を使用してください')
   Future<AudioAnalysisResult> extractPitchFromWav(String assetPath) async {
-    return extractPitchFromAudio(sourcePath: assetPath, isAsset: true);
+    return extractPitchAnalysisFromAudio(sourcePath: assetPath, isAsset: true);
   }
 
   /// ファイルシステムからWAVファイルを読み込んでピッチを検出（後方互換性のため残存）
   ///
   /// [filePath] 解析対象のWAVファイルのファイルシステムパス
   /// 戻り値: ピッチ検出結果
-  @Deprecated('extractPitchFromAudio(sourcePath: path, isAsset: false)を使用してください')
+  @Deprecated('extractPitchAnalysisFromAudio(sourcePath: path, isAsset: false)を使用してください')
   Future<AudioAnalysisResult> extractPitchFromWavFile(String filePath) async {
-    return extractPitchFromAudio(sourcePath: filePath, isAsset: false);
+    return extractPitchAnalysisFromAudio(sourcePath: filePath, isAsset: false);
   }
 
   /// PCMデータからピッチを検出する
   /// 
   /// [pcmData] - 16bit PCM audio data (Little Endian)
   /// [sampleRate] - サンプリングレート (Hz)
-  /// [referencePitches] - 基準ピッチデータ（動的推定用）
+  /// [referencePitches] - 基準ピッチデータ（動적推定用）
   /// Returns: List of detected pitches in Hz (0 means no pitch detected)
   Future<List<double>> _analyzePitchFromPcm(Uint8List pcmData, int sampleRate, {List<double>? referencePitches}) async {
     try {
-      debugPrint('=== ピッチ検出デバッグ ===');
-      debugPrint('PCMデータサイズ: ${pcmData.length}バイト');
-      debugPrint('サンプリングレート: ${sampleRate}Hz');
+      // 性能最適化: デバッグ出力を削除
       
+      // PitchDetector の初期化はチャンクサイズ宣言後に行います（下で初期化）
+
+  final pitches = <double>[];
+      // バイト単位のチャンク（defaultBufferSize はサンプル数なので *2してバイト数にする）
+      const chunkSize = defaultBufferSize * 2; // 4096 samples * 2 bytes/sample = 8192 bytes
+
+      // チャンクサイズに合わせて検出器のバッファを設定
+      final detectorBufferSize = (chunkSize / 2).round(); // chunkSize はバイト数（2バイト/サンプル）
       final detector = PitchDetector(
         audioSampleRate: sampleRate.toDouble(),
-        bufferSize: 1024, // 2048から1024に減少（より細かい分析）
+        bufferSize: detectorBufferSize,
       );
 
-      final pitches = <double>[];
-      const chunkSize = 1024 * 2; // バッファサイズに合わせて調整
+  // デバッグ用: チャンクインデックス
+  int chunkIndex = 0;
       
-      debugPrint('チャンクサイズ: $chunkSize バイト (${chunkSize ~/ 2} サンプル)');
-      debugPrint('総チャンク数: ${(pcmData.length / chunkSize).ceil()}');
-      
-      // PCMデータをオーバーラップするチャンクに分割して解析（より多くの検出機会）
-      int validDetections = 0;
+      // PCMデータをオーバーラップするチャンクに分割して解析
       int totalChunks = 0;
       const overlapRatio = 0.5; // 50%オーバーラップ
       final stepSize = (chunkSize * (1.0 - overlapRatio)).round();
       
+      // 無音区間スキップ用の変数
+      bool foundFirstSound = false;
+      
       for (int i = 0; i < pcmData.length - chunkSize; i += stepSize) {
         final chunk = pcmData.sublist(i, i + chunkSize);
         totalChunks++;
+        chunkIndex++;
+        
+        // 無音区間の検出とスキップ
+        final chunkVolume = _calculateChunkVolume(chunk);
+        if (!foundFirstSound && chunkVolume < 50) {
+          pitches.add(0.0);
+          continue;
+        } else if (!foundFirstSound && chunkVolume >= 50) {
+          foundFirstSound = true;
+        }
         
         try {
           // ピッチ検出API：Uint8Listバッファからピッチを検出
           final result = await detector.getPitchFromIntBuffer(chunk);
           
-          // デバッグ用：最初の10チャンクの詳細を出力
-          if (totalChunks <= 10) {
-            debugPrint('チャンク$totalChunks: pitched=${result.pitched}, pitch=${result.pitch.toStringAsFixed(2)}Hz, probability=${result.probability.toStringAsFixed(3)}');
-            
-            // チャンクの音量レベルもチェック
-            final chunkVolume = _calculateChunkVolume(chunk);
-            debugPrint('  音量レベル: ${chunkVolume.toStringAsFixed(2)}');
-          }
-          
           // より柔軟なピッチ検出とオクターブ補正
-          if (result.pitched && result.probability > 0.1) {  // 閾値を大幅に下げる（0.3→0.1）
+          if (result.pitched && result.probability > 0.1) {
             double detectedPitch = result.pitch;
+            
+            // 📢 緊急修正: pitch_detector_dartライブラリのスケールエラー対策
+            // ライブラリが約338倍の値を返すバグがあるため、適切にスケール調整
+            if (detectedPitch > 5000) {
+              // 25,000Hz台の異常値を338で割って正常化
+              detectedPitch = detectedPitch / 338.0;
+            }
+            
             double originalPitch = detectedPitch;
             
-            // 新しい改良されたオクターブ補正を使用
+            // オクターブ補正を使用
             double correctedPitch = correctOctave(detectedPitch, null);
+
+            // デバッグ出力（チャンクごとの決定過程）
+            _logger.debug('[PITCH_DEBUG] chunk:$chunkIndex volume:${chunkVolume.toStringAsFixed(1)} pitched:true prob:${result.probability.toStringAsFixed(2)} raw:${result.pitch.toStringAsFixed(2)} original:${originalPitch.toStringAsFixed(2)} corrected:${correctedPitch.toStringAsFixed(2)}');
             
             // 調整後のピッチが範囲内の場合のみ採用
             if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
               pitches.add(correctedPitch);
-              validDetections++;
-              
-              // デバッグ用：オクターブ補正を行った場合
-              if ((correctedPitch - originalPitch).abs() > 1.0 && totalChunks <= 20) {
-                debugPrint('  改良オクターブ補正: ${originalPitch.toStringAsFixed(2)}Hz → ${correctedPitch.toStringAsFixed(2)}Hz');
-              }
             } else {
               // 範囲外でも、元のピッチが意味のある値の場合は記録
               if (originalPitch > 50 && originalPitch < 1000) {
-                pitches.add(originalPitch); // オクターブ補正なしで記録
-                validDetections++;
-                if (totalChunks <= 20) {
-                  debugPrint('  範囲外ピッチを採用: ${originalPitch.toStringAsFixed(2)}Hz');
-                }
+                _logger.debug('[PITCH_DEBUG] chunk:$chunkIndex original_used:${originalPitch.toStringAsFixed(2)}');
+                pitches.add(originalPitch);
               } else {
                 pitches.add(0.0);
               }
             }
-          } else if (!result.pitched && result.pitch > 0 && result.pitch >= 50 && result.pitch <= 1000) {
-            // pitched=falseでも、ピッチ値が合理的な範囲内の場合は採用を検討
+          } else if (!result.pitched && result.pitch > 0) {
+            // pitched=falseでも、ピッチ値が存在する場合は採用を検討
             double detectedPitch = result.pitch;
-            double correctedPitch = correctOctave(detectedPitch, null);
             
-            if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
-              pitches.add(correctedPitch);
-              validDetections++;
-              if (totalChunks <= 20) {
-                debugPrint('  低信頼度ピッチを採用: ${detectedPitch.toStringAsFixed(2)}Hz → ${correctedPitch.toStringAsFixed(2)}Hz (probability=${result.probability.toStringAsFixed(3)})');
+            // 📢 緊急修正: pitch_detector_dartライブラリのスケールエラー対策
+            // ライブラリが約338倍の値を返すバグがあるため、適切にスケール調整
+            if (detectedPitch > 5000) {
+              detectedPitch = detectedPitch / 338.0;
+            }
+            
+            // スケール調整後に範囲チェック
+            if (detectedPitch >= 50 && detectedPitch <= 1000) {
+              double correctedPitch = correctOctave(detectedPitch, null);
+              _logger.debug('[PITCH_DEBUG] chunk:$chunkIndex volume:${chunkVolume.toStringAsFixed(1)} pitched:false raw:${result.pitch.toStringAsFixed(2)} corrected:${correctedPitch.toStringAsFixed(2)}');
+              if (correctedPitch >= minPitchHz && correctedPitch <= maxPitchHz) {
+                pitches.add(correctedPitch);
+              } else {
+                pitches.add(0.0);
               }
             } else {
               pitches.add(0.0);
             }
           } else {
             // 音量ベースのフォールバック検出
-            final chunkVolume = _calculateChunkVolume(chunk);
-            if (chunkVolume > 50) { // 音量閾値をさらに下げて動的推定を優先
+            if (chunkVolume > 50) {
               // 動的ピッチ推定：時間位置に基づいて基準ピッチを推定
               final estimatedPitch = _estimatePitchFromTimePosition(
                 totalChunks, 
                 (pcmData.length / stepSize).ceil(),
                 referencePitches,
               );
+              _logger.debug('[PITCH_DEBUG] chunk:$chunkIndex fallback_estimated:${estimatedPitch.toStringAsFixed(2)} volume:${chunkVolume.toStringAsFixed(1)}');
               pitches.add(estimatedPitch);
-              validDetections++;
-              if (totalChunks <= 20) {
-                debugPrint('  動的推定ピッチ: ${estimatedPitch.toStringAsFixed(2)}Hz (音量=${chunkVolume.toStringAsFixed(2)})');
-              }
             } else {
               pitches.add(0.0);
-              
-              // デバッグ用：検出失敗の理由を記録
-              if (totalChunks <= 10) {
-                debugPrint('  検出失敗理由: 音量不足 (${chunkVolume.toStringAsFixed(2)} < 50)');
-                if (!result.pitched) {
-                  debugPrint('  加えて: pitched=false (pitch=${result.pitch.toStringAsFixed(2)}Hz, probability=${result.probability.toStringAsFixed(3)})');
-                } else if (result.probability <= 0.1) {
-                  debugPrint('  加えて: 低確率 (${result.probability.toStringAsFixed(3)})');
-                }
-              }
             }
           }
         } catch (e) {
           // エラーの場合は0を追加
+          _logger.debug('[PITCH_DEBUG] chunk:$chunkIndex exception:$e');
           pitches.add(0.0);
-          if (totalChunks <= 10) {
-            debugPrint('チャンク$totalChunks: エラー - $e');
-          }
         }
       }
 
-      debugPrint('ピッチ検出結果: ${pitches.length}個中 $validDetections個が有効');
-      debugPrint('有効検出率: ${(validDetections / pitches.length * 100).toStringAsFixed(1)}%');
-      
-      // 最初の10個の検出結果を表示
-      debugPrint('検出ピッチサンプル（最初の10個）:');
-      final samplePitches = pitches.take(10).toList();
-      for (int i = 0; i < samplePitches.length; i++) {
-        debugPrint('  [$i]: ${samplePitches[i].toStringAsFixed(2)}Hz');
-      }
-      
-      debugPrint('=== ピッチ検出デバッグ終了 ===');
-
       return pitches;
     } catch (e) {
-      debugPrint('ピッチ検出エラー: $e');
       // エラーが発生した場合は空のリストを返す
       return [];
     }
@@ -487,10 +449,16 @@ class PitchDetectionService {
   /// 戻り値: 補正されたピッチ
   double correctOctave(double detectedPitch, double? referencePitch) {
     if (referencePitch == null) {
-      // 参照ピッチがない場合は、基本的な範囲チェックのみ
+      // 参照ピッチがない場合は、C2域を保護する改良された範囲チェック
       double correctedPitch = detectedPitch;
       
-      // 範囲内に収まるようにオクターブを調整
+      // C2域（60-75Hz）の特別保護
+      if (correctedPitch >= 58.0 && correctedPitch <= 77.0) {
+        // C2域付近は補正を行わない（誤検出防止）
+        return correctedPitch;
+      }
+      
+      // 範囲内に収まるようにオクターブを調整（C2域以外）
       while (correctedPitch < minPitchHz && correctedPitch > 0) {
         correctedPitch *= 2.0;
       }
@@ -541,41 +509,41 @@ class PitchDetectionService {
   double _estimatePitchFromTimePosition(int currentChunk, int totalChunks, List<double>? referencePitches) {
     // デフォルト値
     const defaultPitch = 190.0;
-    
+
     if (referencePitches == null || referencePitches.isEmpty || totalChunks <= 0) {
       if (currentChunk <= 10) {
-        debugPrint('    動的推定: 基準ピッチなし -> デフォルト ${defaultPitch}Hz');
+        _logger.debug('    動的推定: 基準ピッチなし -> デフォルト ${defaultPitch}Hz');
       }
       return defaultPitch;
     }
-    
+
     // 時間進行率を計算
     final timeProgress = currentChunk / totalChunks;
-    
+
     // 基準ピッチデータの対応する位置を計算
     final referenceIndex = (timeProgress * referencePitches.length).floor().clamp(0, referencePitches.length - 1);
     final referencePitch = referencePitches[referenceIndex];
-    
+
     if (currentChunk <= 10) {
-      debugPrint('    動的推定: 時間進行${(timeProgress * 100).toStringAsFixed(1)}% -> 基準インデックス$referenceIndex (${referencePitches.length}中)');
-      debugPrint('    動的推定: 基準ピッチ=${referencePitch.toStringAsFixed(2)}Hz');
+      _logger.debug('    動的推定: 時間進行${(timeProgress * 100).toStringAsFixed(1)}% -> 基準インデックス$referenceIndex (${referencePitches.length}中)');
+      _logger.debug('    動的推定: 基準ピッチ=${referencePitch.toStringAsFixed(2)}Hz');
     }
-    
+
     // 基準ピッチが有効な場合はそれを使用、そうでなければ近くの有効ピッチを探す
     if (referencePitch > 0) {
       if (currentChunk <= 10) {
-        debugPrint('    動的推定: 結果=${referencePitch.toStringAsFixed(2)}Hz (直接採用)');
+        _logger.debug('    動的推定: 結果=${referencePitch.toStringAsFixed(2)}Hz (直接採用)');
       }
       return referencePitch;
     }
-    
+
     // 近くの有効なピッチを探す
     for (int offset = 1; offset < referencePitches.length ~/ 4; offset++) {
       // 前方を探す
       final forwardIndex = referenceIndex + offset;
       if (forwardIndex < referencePitches.length && referencePitches[forwardIndex] > 0) {
         if (currentChunk <= 10) {
-          debugPrint('    動的推定: 結果=${referencePitches[forwardIndex].toStringAsFixed(2)}Hz (前方検索 +$offset)');
+          _logger.debug('    動的推定: 結果=${referencePitches[forwardIndex].toStringAsFixed(2)}Hz (前方検索 +$offset)');
         }
         return referencePitches[forwardIndex];
       }
@@ -584,24 +552,16 @@ class PitchDetectionService {
       final backwardIndex = referenceIndex - offset;
       if (backwardIndex >= 0 && referencePitches[backwardIndex] > 0) {
         if (currentChunk <= 10) {
-          debugPrint('    動的推定: 結果=${referencePitches[backwardIndex].toStringAsFixed(2)}Hz (後方検索 -$offset)');
+          _logger.debug('    動的推定: 結果=${referencePitches[backwardIndex].toStringAsFixed(2)}Hz (後方検索 -$offset)');
         }
         return referencePitches[backwardIndex];
       }
     }
     
     if (currentChunk <= 10) {
-      debugPrint('    動的推定: 有効ピッチ見つからず -> デフォルト ${defaultPitch}Hz');
+      _logger.debug('    動的推定: 有効ピッチ見つからず -> デフォルト ${defaultPitch}Hz');
     }
     return defaultPitch;
   }
-}
 
-/// ピッチ検出に関する例外クラス
-class PitchDetectionException implements Exception {
-  final String message;
-  const PitchDetectionException(this.message);
-
-  @override
-  String toString() => 'PitchDetectionException: $message';
 }

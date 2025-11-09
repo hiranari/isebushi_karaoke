@@ -33,36 +33,54 @@ Flutter で開発された伊勢節のカラオケアプリです。録音機能
 ```
 lib/
 ├── main.dart                    # アプリエントリーポイント・ルーティング
-├── song_select_page.dart        # 曲選択画面
-├── pages/
-│   ├── karaoke_page.dart        # カラオケメイン画面（Phase 3アーキテクチャ）
-│   └── karaoke_page_legacy.dart # レガシー実装
-├── models/
-│   ├── song_result.dart         # 歌唱結果データモデル
-│   ├── comprehensive_score.dart # 包括的スコアモデル
-│   ├── improvement_suggestion.dart # 改善提案モデル
-│   ├── pitch_comparison_result.dart # ピッチ比較結果
-│   └── audio_analysis_result.dart   # 音声解析結果
-├── services/
-│   ├── scoring_service.dart           # スコアリングロジック
-│   ├── pitch_detection_service.dart   # ピッチ検出サービス
-│   ├── pitch_comparison_service.dart  # ピッチ比較サービス
-│   ├── analysis_service.dart          # 詳細分析サービス
-│   ├── improvement_suggestion_service.dart # 改善提案生成
-│   ├── feedback_service.dart          # フィードバック生成
-│   ├── audio_processing_service.dart  # 音声処理サービス
-│   ├── cache_service.dart             # キャッシュ管理
-│   └── karaoke_session_notifier.dart  # セッション通知
-├── providers/
-│   ├── karaoke_session_provider.dart  # カラオケセッション状態管理
-│   └── song_result_provider.dart      # 歌唱結果状態管理
-└── widgets/
-    ├── progressive_score_display.dart      # プログレッシブスコア表示
-    ├── realtime_pitch_visualizer.dart     # リアルタイムピッチ可視化
-    ├── overall_score_widget.dart          # 総合スコア表示
-    ├── detailed_analysis_widget.dart      # 詳細分析表示
-    ├── improvement_suggestions_widget.dart # 改善提案表示
-    └── song_result_widget.dart            # 歌唱結果表示
+├── application/                 # アプリケーション層
+│   └── providers/
+│       ├── karaoke_session_provider.dart  # カラオケセッション状態管理
+│       └── song_result_provider.dart      # 歌唱結果状態管理
+├── core/                        # 共通機能
+│   └── utils/
+│       ├── debug_logger.dart               # デバッグロガー
+│       ├── debug_file_logger.dart          # ファイルデバッグロガー
+│       ├── singer_encoder.dart             # 歌手名エンコーダー
+│       └── pitch_debug_helper.dart         # ピッチデバッグヘルパー
+├── domain/                      # ドメイン層
+│   └── models/
+│       ├── song_result.dart         # 歌唱結果データモデル
+│       ├── comprehensive_score.dart # 包括的スコアモデル
+│       ├── improvement_suggestion.dart # 改善提案モデル
+│       ├── pitch_comparison_result.dart # ピッチ比較結果
+│       └── audio_analysis_result.dart   # 音声解析結果
+├── infrastructure/              # インフラ層
+│   └── services/
+│       ├── scoring_service.dart           # スコアリングロジック
+│       ├── pitch_detection_service.dart   # ピッチ検出サービス
+│       ├── pitch_comparison_service.dart  # ピッチ比較サービス
+│       ├── analysis_service.dart          # 詳細分析サービス
+│       ├── improvement_suggestion_service.dart # 改善提案生成
+│       ├── feedback_service.dart          # フィードバック生成
+│       ├── audio_processing_service.dart  # 音声処理サービス
+│       ├── cache_service.dart             # キャッシュ管理
+│       ├── wav_validator.dart             # WAVファイル検証
+│       └── karaoke_session_notifier.dart  # セッション通知
+└── presentation/                # プレゼンテーション層
+    ├── pages/
+    │   ├── song_select_page.dart        # 曲選択画面
+    │   ├── karaoke_page.dart            # カラオケメイン画面（Phase 3アーキテクチャ）
+    │   ├── karaoke_page_legacy.dart     # レガシー実装
+    │   └── phase3_demo_page.dart        # Phase 3デモ画面（開発用）
+    └── widgets/
+        ├── karaoke/
+        │   ├── progressive_score_display.dart      # プログレッシブスコア表示
+        │   └── realtime_pitch_visualizer.dart     # リアルタイムピッチ可視化
+        ├── results/
+        │   ├── overall_score_widget.dart          # 総合スコア表示
+        │   ├── detailed_analysis_widget.dart      # 詳細分析表示
+        │   ├── improvement_suggestions_widget.dart # 改善提案表示
+        │   └── song_result_widget.dart            # 歌唱結果表示
+        ├── debug/
+        │   └── debug_info_overlay.dart            # デバッグ情報オーバーレイ
+        ├── pitch_visualization_widget.dart        # ピッチ可視化ウィジェット
+        └── realtime_score_widget.dart             # リアルタイムスコアウィジェット
 
 assets/
 ├── data/
@@ -147,23 +165,28 @@ export PATH="$PWD/flutter/bin:$PATH"
    flutter pub get
    ```
 
-3. **静的解析の実行**
+3. **品質チェック・テストの実行**
    ```bash
-   flutter analyze
+   # 統合品質チェック（静的解析+テスト実行）
+   ./scripts/validate-ci.sh
    ```
 
-4. **テストの実行**
+   **または個別実行：**
    ```bash
+   # 静的解析のみ
+   flutter analyze
+   
+   # テストのみ
    flutter test
    ```
 
-5. **アイコン・スプラッシュ画像の生成**
+4. **アイコン・スプラッシュ画像の生成**
    ```bash
    flutter pub run flutter_launcher_icons:main
    flutter pub run flutter_native_splash:create
    ```
 
-6. **アプリのビルドと実行**
+5. **アプリのビルドと実行**
    ```bash
    # デバッグモードで実行
    flutter run
@@ -254,17 +277,17 @@ iOS の場合は自動で権限処理されます
    flutter pub get
    ```
 
-3. **静的解析**
+3. **統合品質チェック**
    ```bash
-   flutter analyze --fatal-infos
+   # 静的解析 + テスト実行を統合実行
+   ./scripts/validate-ci.sh
    ```
 
-4. **テスト実行**
-   ```bash
-   flutter test --coverage
-   ```
+   **内部実行内容：**
+   - 静的解析: `flutter analyze --fatal-infos`
+   - テスト実行: `flutter test --coverage`
 
-5. **カバレッジレポート** (オプション)
+4. **カバレッジレポート** (オプション)
    - Codecovへのカバレッジ情報アップロード
 
 ### ワークフローファイル
@@ -276,10 +299,13 @@ CI設定は `.github/workflows/ci.yml` で管理されています。
 いずれかのステップが失敗した場合：
 - プルリクエストのマージが制限されます
 - GitHub上でエラーの詳細を確認できます
-- ローカルで同じコマンドを実行して問題を特定・修正してください
+- ローカルで同じチェックを実行して問題を特定・修正してください
 
 ```bash
-# ローカルでCIと同じチェックを実行
+# ローカルでCIと同じチェックを統合実行
+./scripts/validate-ci.sh
+
+# または個別確認
 flutter pub get
 flutter analyze --fatal-infos
 flutter test
@@ -287,14 +313,15 @@ flutter test
 
 ### ローカル検証スクリプト
 
-CIと同じチェックをローカルで実行するためのスクリプトを用意しています：
+**推奨：** CIと同じチェックをローカルで実行するための統合スクリプト：
 
 ```bash
-# スクリプトの実行
+# 統合品質チェック実行
 ./scripts/validate-ci.sh
 ```
 
 このスクリプトはプッシュ前に実行することで、CIでの失敗を事前に防ぐことができます。
+エラー、警告、テスト失敗があれば適切な終了コードで停止するため、品質を保証できます。
 
 ## 状態管理・UI分岐・Provider活用ルール
 
@@ -476,21 +503,25 @@ if (sessionProvider.state == KaraokeSessionState.error) {
    flutter pub get
    ```
 
-4. **静的解析の実行**
+4. **統合品質チェックの実行**
    ```bash
-   flutter analyze --fatal-infos
+   # 推奨：全品質チェック（解析＋テスト＋カバレッジ）を一括実行
+   ./scripts/validate-ci.sh
    ```
 
-5. **テストの実行**
+   個別実行が必要な場合：
    ```bash
-   # 全てのテストを実行
+   # 静的解析のみ
+   flutter analyze --fatal-infos
+
+   # テストのみ
    flutter test
 
-   # カバレッジ付きでテストを実行
+   # カバレッジ付きテスト
    flutter test --coverage
 
    # 特定のテストファイルのみ実行
-      flutter test test/scoring_service_test.dart
+   flutter test test/scoring_service_test.dart
    ```
 
 ### コーディングガイドライン
@@ -505,8 +536,9 @@ if (sessionProvider.state == KaraokeSessionState.error) {
   - ❌ `fundamentalFreqs`, `freqIndex`, `avgErr`
 
 #### 品質管理
-- **ゼロ警告原則**: `flutter analyze` で警告・エラーを残さない
-- **テスト完走**: `flutter test` で全テストが通ることを確認
+- **統合品質チェック**: `./scripts/validate-ci.sh` で解析・テスト・カバレッジを一括実行
+- **ゼロ警告原則**: 静的解析で警告・エラーを残さない
+- **テスト完走**: 全テストが通ることを確認
 - **詳細**: `CONTRIBUTING.md` を参照
 
 ## 機能概要
@@ -761,6 +793,22 @@ flutter run
 ## 貢献
 
 プルリクエストやイシューの報告を歓迎します。
+
+## ドキュメント
+
+詳細なドキュメントは以下を参照してください：
+
+- **アーキテクチャ**: `docs/architecture/` - システム設計とUML図
+- **開発ガイドライン**: `docs/guidelines/` - コーディング規約とベストプラクティス
+- **開発資料**: `docs/development/` - 実装詳細と技術仕様
+- **コンプライアンス**: `docs/compliance/` - プライバシー保護とセキュリティ
+
+### 主要ドキュメント
+- [リファクタリングタスクリスト](docs/development/REFACTORING_TASK_LIST.md)
+- [コミットガイドライン](docs/guidelines/COMMIT_GUIDELINES.md)
+- [音声開発ガイドライン](docs/guidelines/AUDIO_DEVELOPMENT_GUIDELINES.md)
+- [フォルダ構造ガイドライン](docs/guidelines/FOLDER_STRUCTURE_GUIDELINES.md)
+- [Copilot開発支援ガイドライン](docs/guidelines/COPILOT_DEVELOPMENT_GUIDELINES.md)
 
 ## 参考資料
 

@@ -50,3 +50,13 @@ flutter.tar.xz
 
 # Coverage files
 coverage/
+
+# WAV file tool backups
+*.wav.backup.*
+assets/sounds/*.backup.*
+
+# Pitch verification tool results
+verification_results/
+**/verification_results/
+*_verification_*.json
+Test_verification_*.json

@@ -142,7 +142,7 @@ class DebugLogger {
       final stopwatch = Stopwatch()..start();
       final result = action();
       stopwatch.stop();
-      info('⏱️ $label: ${stopwatch.elapsedMilliseconds}ms');
+      DebugLogger.info('⏱️ $label: ${stopwatch.elapsedMilliseconds}ms');
       return result;
     } else {
       return action();
@@ -155,7 +155,7 @@ class DebugLogger {
   /// [message] ログメッセージ
   static void conditional(bool condition, String message) {
     if (kDebugMode && condition) {
-      info(message);
+      DebugLogger.info(message);
     }
   }
 }

@@ -1,23 +1,28 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:record/record.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../infrastructure/services/pitch_detection_service.dart';
-import '../../infrastructure/services/cache_service.dart';
+import '../../infrastructure/services/pitch_comparison_service.dart';
+import '../../infrastructure/services/pitch_verification_service.dart';
+import '../../infrastructure/factories/service_locator.dart';
 import '../../application/providers/karaoke_session_provider.dart';
+import '../../application/use_cases/verify_pitch_use_case.dart';
 import '../widgets/karaoke/progressive_score_display.dart';
 import '../widgets/karaoke/realtime_pitch_visualizer.dart';
+import '../widgets/pitch_visualization_widget.dart';
+import '../widgets/realtime_score_widget.dart';
+import '../widgets/debug/debug_info_overlay.dart';
 import '../../core/utils/singer_encoder.dart';
-import '../../core/utils/debug_logger.dart';
 import '../../core/utils/pitch_debug_helper.dart';
 import '../../domain/models/audio_analysis_result.dart';
+import '../../domain/interfaces/i_logger.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
 /// 
@@ -38,12 +43,48 @@ class _KaraokePageState extends State<KaraokePage> {
   // 再生状態の管理
   bool _isPlaying = false;
 
+  // Logger
+  late final ILogger _logger;
+
   // Phase 1サービス（既存機能）
-  final PitchDetectionService _pitchDetectionService = PitchDetectionService();
+  late final PitchDetectionService _pitchDetectionService;
+  
+  // Phase 3: 新しいアーキテクチャサービス
+  late final PitchVerificationService _verificationService;
+  late final VerifyPitchUseCase _verifyPitchUseCase;
+
+  // Phase 3: リアルタイムスコア機能
+  final List<RealtimeScoreResult> _scoreHistory = [];
+  double _currentScore = 0.0;
+  double _averageScore = 0.0;
+  double _maxScore = 0.0;
+  ScoreLevel _currentLevel = ScoreLevel.beginner;
+  final List<double> _pitchHistory = [];
 
   // ロード状態
   bool _isLoadingReferencePitches = false;
   String _analysisStatus = '';
+
+  // デバッグ機能
+  final List<String> _debugLogs = [];
+  bool _showDebugOverlay = false;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Service Locatorから依存関係を取得
+    _logger = ServiceLocator().getService<ILogger>();
+    _pitchDetectionService = ServiceLocator().getService<PitchDetectionService>();
+    
+    // Phase 3: 新しいアーキテクチャサービス初期化
+    _verificationService = PitchVerificationService(
+      pitchDetectionService: _pitchDetectionService,
+    );
+    _verifyPitchUseCase = VerifyPitchUseCase(
+      verificationService: _verificationService,
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -60,6 +101,19 @@ class _KaraokePageState extends State<KaraokePage> {
     
     final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     if (selectedSong != null) {
+      // デバッグ: 楽曲情報を表示
+      if (kDebugMode) {
+        debugPrint('🎵 選択された楽曲情報:');
+        debugPrint('  title: ${selectedSong['title']}');
+        debugPrint('  audioFile: ${selectedSong['audioFile']}');
+        debugPrint('  singer: ${selectedSong['singer']}');
+        
+        // アップグレードボタン表示条件をチェック
+        final isTestSong = selectedSong['audioFile']?.contains('Test.wav') == true || 
+                          selectedSong['title'] == 'テスト';
+        debugPrint('  アップグレードボタン表示: $isTestSong');
+      }
+      
       _loadReferencePitches(selectedSong);
     }
   }
@@ -72,7 +126,10 @@ class _KaraokePageState extends State<KaraokePage> {
     super.dispose();
   }
 
-  /// 基準ピッチデータの読み込み（Phase 1機能を維持）
+  /// 基準ピッチデータの読み込み（Phase 3: クリーンアーキテクチャ対応）
+  /// 
+  /// UseCaseパターンを使用してDRY原則に従い、
+  /// 外部ツールと同じロジックでピッチ検証を実行
   Future<void> _loadReferencePitches(Map<String, String> selectedSong) async {
     setState(() {
       _isLoadingReferencePitches = true;
@@ -83,48 +140,53 @@ class _KaraokePageState extends State<KaraokePage> {
       final audioFile = selectedSong['audioFile']!;
       final songTitle = selectedSong['title']!;
 
-      // キャッシュから読み込み試行
-      setState(() => _analysisStatus = 'キャッシュを確認中...');
-      final cachedResult = await CacheService.loadFromCache(audioFile);
+      setState(() => _analysisStatus = 'ピッチ検証実行中...');
 
-      List<double> pitches;
-      if (cachedResult != null) {
-        pitches = cachedResult.pitches;
-        setState(() => _analysisStatus = 'キャッシュから読み込み完了');
-        _showSnackBar('キャッシュからピッチデータを読み込みました');
-      } else {
-        // 新規解析
-        setState(() => _analysisStatus = 'ピッチデータを解析中...');
-        _showSnackBar('ピッチデータを解析中...');
+      // Phase 3: 新しいUseCaseパターンでピッチ検証実行
+      final verificationResult = await _verifyPitchUseCase.execute(
+        wavFilePath: audioFile,
+        useCache: true,
+        exportJson: false, // UI使用時はJSON出力なし
+      );
 
-        final analysisResult = await _pitchDetectionService.extractPitchFromAudio(
-          sourcePath: audioFile,
-          isAsset: true,
-        );
+      final pitches = verificationResult.pitches;
+      final stats = verificationResult.statistics;
 
-        pitches = analysisResult.pitches;
-        await CacheService.saveToCache(audioFile, analysisResult);
-        setState(() => _analysisStatus = '解析完了・キャッシュ保存済み');
-        DebugLogger.success('ピッチデータの解析が完了しました');
-        _showSnackBar('ピッチデータの解析が完了しました');
+      // UI状態更新
+      setState(() => _analysisStatus = verificationResult.fromCache 
+          ? 'キャッシュから読み込み完了' 
+          : '解析完了・キャッシュ保存済み');
+      
+      // ユーザーフィードバック
+      _showSnackBar(verificationResult.fromCache 
+          ? 'キャッシュからピッチデータを読み込みました'
+          : 'ピッチデータの解析が完了しました');
+
+      // デバッグ情報の統合出力
+      await _outputVerificationDebugInfo(audioFile, songTitle, verificationResult);
+
+      // Phase 3: 統計情報に基づく高度なデバッグ出力
+      if (audioFile.contains('Test.wav')) {
+        _outputAdvancedTestWavAnalysis(songTitle, stats, pitches);
       }
 
-      // === 基準ピッチデバッグ情報 ===
-      debugPrint('=== 基準ピッチ抽出デバッグ ===');
-      debugPrint('抽出されたピッチ数: ${pitches.length}');
-      debugPrint('基準ピッチサンプル（最初の10個）:');
-      final baseSample = pitches.take(10).toList();
-      for (int i = 0; i < baseSample.length; i++) {
-        debugPrint('  [$i]: ${baseSample[i].toStringAsFixed(2)}Hz');
-      }
-
-      // ピッチデータの範囲チェックと補正（伊勢節に適した範囲：100-500Hz）
+      // ピッチデータの範囲チェックと補正（伊勢節に適した範囲）
       final filteredPitches = pitches.map((pitch) {
-        if (pitch > 0 && (pitch < 100.0 || pitch > 500.0)) {
-          return 0.0; // 範囲外の値は無音として扱う
+        if (pitch > 0) {
+          // ドレミファソラシドの周波数範囲を考慮（C4=261.63Hz〜C6=1046.5Hz）
+          if (pitch < 80.0 || pitch > 1200.0) {
+            return 0.0; // 明らかに範囲外の値は無音として扱う
+          }
+          return pitch; // 有効な音程として保持
         }
-        return pitch;
+        return pitch; // 0は無音として保持
       }).toList();
+
+      // **重要**: 有効なピッチが少なすぎる場合はエラーとして扱う
+      final validFilteredCount = filteredPitches.where((p) => p > 0).length;
+      if (validFilteredCount < 10) {
+        throw Exception('有効なピッチが検出されませんでした（$validFilteredCount個）。Test.wavファイルにドレミファソラシドが正しく録音されているか確認してください。');
+      }
 
       // 統計情報をログ出力
       final validOriginal = pitches.where((p) => p > 0).toList();
@@ -183,16 +245,36 @@ class _KaraokePageState extends State<KaraokePage> {
 
   /// フォールバック用の基本的なピッチデータを生成
   List<double> _generateFallbackPitches() {
-    // 一般的な楽曲の音階に基づいた基本的なピッチデータを生成
-    const basePitches = [
-      261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, // C4-C5
+    // ドレミファソラシドの正確な周波数（C4スケール）
+    const doReMiFaSoLaSiDo = [
+      261.63, // ド (C4)
+      293.66, // レ (D4)
+      329.63, // ミ (E4)
+      349.23, // ファ (F4)
+      392.00, // ソ (G4)
+      440.00, // ラ (A4) - 基準音
+      493.88, // シ (B4)
+      523.25, // ド (C5)
     ];
     
+    debugPrint('=== フォールバック処理実行中 ===');
+    debugPrint('⚠️ Test.wavの実際のピッチ検出が失敗したため、ドレミファソラシドの理論値を使用します');
+    
     final pitches = <double>[];
-    for (int i = 0; i < 500; i++) {
-      final index = i % basePitches.length;
-      pitches.add(basePitches[index]);
+    // 各音を15回ずつ繰り返して、一般的な楽曲の長さに合わせる
+    for (int noteIndex = 0; noteIndex < doReMiFaSoLaSiDo.length; noteIndex++) {
+      for (int repeat = 0; repeat < 15; repeat++) {
+        pitches.add(doReMiFaSoLaSiDo[noteIndex]);
+      }
     }
+    
+    // 残りを最後の音で埋める
+    while (pitches.length < 500) {
+      pitches.add(doReMiFaSoLaSiDo.last);
+    }
+    
+    debugPrint('フォールバックピッチ生成完了: ${pitches.length}個 (${doReMiFaSoLaSiDo.first.toStringAsFixed(1)}Hz〜${doReMiFaSoLaSiDo.last.toStringAsFixed(1)}Hz)');
+    debugPrint('=== フォールバック処理完了 ===');
     
     return pitches;
   }
@@ -203,37 +285,25 @@ class _KaraokePageState extends State<KaraokePage> {
       final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
       final audioFile = selectedSong?['audioFile'] ?? 'assets/sounds/Test.wav';
       
-      debugPrint('音源再生を開始: $audioFile');
+      if (kDebugMode) {
+        debugPrint('音源再生を開始: $audioFile');
+      }
       
       // 現在の再生を停止
       await _player.stop();
       
-      // オーディオソースを設定
+      // 直接WAVファイルを再生
       await _player.setAudioSource(AudioSource.asset(audioFile));
       
       // 再生を開始
       await _player.play();
       
-      DebugLogger.success('音源再生開始完了');
+      _logger.success('音源再生開始完了: $audioFile');
       _showSnackBar('音源再生を開始しました');
       
     } catch (e) {
-      DebugLogger.error('音源再生に失敗しました', e);
-      _showSnackBar('音源の再生に失敗しました。前の画面に戻ります。');
-      
-      // フォールバック処理: 前の画面に戻る
-      await _returnToPreviousScreen();
-    }
-  }
-
-  /// 前の画面に戻る
-  Future<void> _returnToPreviousScreen() async {
-    try {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      DebugLogger.error('画面遷移に失敗しました', e);
+      _logger.error('音源再生に失敗しました', e);
+      _showSnackBar('音源の再生に失敗しました: $e');
     }
   }
 
@@ -283,7 +353,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
-      DebugLogger.error('録音の開始に失敗しました', e);
+      _logger.error('録音の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の開始に失敗しました: ${e.toString()}');
       }
@@ -300,7 +370,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // 定期的にピッチを更新するタイマーを使用
       _setupPitchDetectionTimer();
     } catch (e) {
-      DebugLogger.error('リアルタイムピッチ検出の開始に失敗しました', e);
+      _logger.error('リアルタイムピッチ検出の開始に失敗しました', e);
       if (mounted) {
         _showSnackBar('リアルタイムピッチ検出の開始に失敗しました: ${e.toString()}');
       }
@@ -366,6 +436,9 @@ class _KaraokePageState extends State<KaraokePage> {
             sessionProvider.updateCurrentPitch(null);
           } else {
             sessionProvider.updateCurrentPitch(clampedPitch);
+            
+            // リアルタイムスコア計算を追加
+            _updateRealtimeScore(clampedPitch, referencePitch);
           }
         } else {
           // 無音部分
@@ -391,6 +464,59 @@ class _KaraokePageState extends State<KaraokePage> {
     }
   }
 
+  /// リアルタイムスコア更新
+  void _updateRealtimeScore(double detectedPitch, double referencePitch) {
+    if (!mounted) return;
+    
+    try {
+      // デバッグモードの場合のみスコア計算を実行
+      if (kDebugMode) {
+        // スコア計算
+        final scoreResult = PitchComparisonService.calculateRealtimeScore(
+          detectedPitch, 
+          referencePitch
+        );
+        
+        if (scoreResult.isValid) {
+          // 履歴に追加
+          _scoreHistory.add(scoreResult);
+          
+          // ピッチ履歴に追加
+          _pitchHistory.add(detectedPitch);
+          if (_pitchHistory.length > 100) {
+            _pitchHistory.removeAt(0); // 古いデータを削除
+          }
+          
+          // 累積スコア計算
+          final cumulativeResult = PitchComparisonService.calculateCumulativeScore(_scoreHistory);
+          
+          // UI状態を更新
+          setState(() {
+            _currentScore = scoreResult.score;
+            _averageScore = cumulativeResult.averageScore;
+            _maxScore = cumulativeResult.maxScore;
+            _currentLevel = ScoreLevel.fromScore(_averageScore);
+          });
+        }
+      }
+    } catch (e) {
+      // エラーは無視（スコア計算はオプション機能）
+      _logger.error('スコア計算エラー', e);
+    }
+  }
+
+  /// 現在の基準ピッチを取得
+  double? _getCurrentReferencePitch(KaraokeSessionProvider sessionProvider) {
+    if (sessionProvider.referencePitches.isEmpty) return null;
+    
+    final currentIndex = sessionProvider.recordedPitches.length;
+    if (currentIndex >= sessionProvider.referencePitches.length) {
+      return sessionProvider.referencePitches.last;
+    }
+    
+    return sessionProvider.referencePitches[currentIndex];
+  }
+
   /// 録音停止
   Future<void> _stopRecording() async {
     try {
@@ -414,7 +540,7 @@ class _KaraokePageState extends State<KaraokePage> {
       }
 
     } catch (e) {
-      DebugLogger.error('録音の停止に失敗しました', e);
+      _logger.error('録音の停止に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音の停止に失敗しました: ${e.toString()}');
       }
@@ -440,7 +566,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // 録音ファイルからピッチを抽出（ファイルシステム対応、基準ピッチ使用）
       if (!mounted) return;
       final sessionProvider = context.read<KaraokeSessionProvider>();
-      var analysisResult = await _pitchDetectionService.extractPitchFromAudio(
+      var analysisResult = await _pitchDetectionService.extractPitchAnalysisFromAudio(
         sourcePath: recordingPath,
         isAsset: false,
         referencePitches: sessionProvider.referencePitches, // 基準ピッチを渡す
@@ -531,15 +657,19 @@ class _KaraokePageState extends State<KaraokePage> {
       }
       
     } catch (e) {
-      DebugLogger.error('録音音声の分析に失敗しました', e);
+      _logger.error('録音音声の分析に失敗しました', e);
       if (mounted) {
         _showSnackBar('録音音声の分析に失敗しました: ${e.toString()}');
         
-        // フォールバック処理：シミュレーションデータを使用
+        // フォールバック処理：録音中のデータを使用
         final sessionProvider = context.read<KaraokeSessionProvider>();
         if (sessionProvider.recordedPitches.isNotEmpty) {
           _showSnackBar('録音中のデータを使用してスコアを計算します');
-          debugPrint('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+          _logger.info('フォールバック: 録音中のピッチデータを使用 (${sessionProvider.recordedPitches.length}個)');
+        } else {
+          _logger.error('録音データが存在しないため、スコア計算を中止します');
+          _showSnackBar('録音データが不足しています。もう一度お試しください。');
+          return;
         }
       }
     }
@@ -548,6 +678,74 @@ class _KaraokePageState extends State<KaraokePage> {
   /// セッションリセット
   void _resetSession() {
     context.read<KaraokeSessionProvider>().resetSession();
+  }
+
+
+
+  /// デバッグオーバーレイの表示切り替え
+  void _toggleDebugOverlay() {
+    setState(() {
+      _showDebugOverlay = !_showDebugOverlay;
+    });
+  }
+
+  /// 改善版Test.wav音源への切り替え
+  void _switchToImprovedTestWav() async {
+    try {
+      // 現在の再生を停止
+      if (_player.playing) {
+        await _player.stop();
+      }
+      
+      if (kDebugMode) {
+        debugPrint('🔄 改善版Test.wav音源切り替え開始');
+      }
+      // 改善版音源に直接切り替え（フォールバックなし）
+      await _player.setAudioSource(
+        AudioSource.asset('assets/sounds/Test_improved.wav'),
+      );
+      if (kDebugMode) {
+        debugPrint('✅ Test_improved.wav読み込み成功');
+      }
+      
+      // セッションリセット
+      if (mounted) {
+        final sessionProvider = context.read<KaraokeSessionProvider>();
+        sessionProvider.resetSession();
+      }
+      
+      // 改善版音源でピッチ検出を再実行
+      if (mounted) {
+        final selectedSong = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+        if (selectedSong != null) {
+          // 改善版音源用の楽曲情報を作成
+          final improvedSongInfo = Map<String, String>.from(selectedSong);
+          improvedSongInfo['audioFile'] = 'assets/sounds/Test_improved.wav';
+          improvedSongInfo['title'] = '${selectedSong['title']}（改善版）';
+          
+          if (kDebugMode) {
+            debugPrint('🔄 改善版音源でピッチ検出を再実行');
+          }
+          await _loadReferencePitches(improvedSongInfo);
+        }
+      }
+      
+      setState(() {
+        // UI更新
+      });
+      
+      if (kDebugMode) {
+        debugPrint('🔄 改善版Test.wav音源に切り替えました');
+        debugPrint('   期待される結果: 261.6→293.7→329.6→349.2→392.0→440.0→493.9→523.3Hz');
+      }
+      _showSnackBar('改善版音源に切り替えました（構造的問題を修正済み）');
+      
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ 改善版音源の読み込みに失敗: $e');
+      }
+      _showSnackBar('改善版音源の読み込みに失敗しました: $e');
+    }
   }
 
   /// SnackBar表示
@@ -629,6 +827,24 @@ class _KaraokePageState extends State<KaraokePage> {
           ],
         ),
         actions: [
+          // デバッグオーバーレイ表示ボタン
+          IconButton(
+            icon: Icon(
+              Icons.developer_mode,
+              color: _showDebugOverlay ? Colors.green : Colors.grey,
+            ),
+            onPressed: _toggleDebugOverlay,
+            tooltip: 'デバッグ表示切り替え',
+          ),
+          // 改善版Test.wav音源切り替えボタン（デバッグ用）
+          if (selectedSong != null && 
+              (selectedSong['audioFile']?.contains('Test.wav') == true || 
+               selectedSong['title'] == 'テスト'))
+            IconButton(
+              icon: const Icon(Icons.upgrade, color: Colors.green),
+              onPressed: _switchToImprovedTestWav,
+              tooltip: '改善版音源に切り替え',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _resetSession,
@@ -636,93 +852,130 @@ class _KaraokePageState extends State<KaraokePage> {
           ),
         ],
       ),
-      body: Consumer<KaraokeSessionProvider>(
-        builder: (context, sessionProvider, child) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // ピッチデータ読み込み状態
-                if (_isLoadingReferencePitches) ...[
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 10),
-                  Text(_analysisStatus),
-                  const SizedBox(height: 20),
-                ],
-
-                // 解析状況表示
-                if (!_isLoadingReferencePitches && _analysisStatus.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue[200]!),
-                    ),
-                    child: Text('状態: $_analysisStatus', style: TextStyle(color: Colors.blue[800])),
-                  ),
-
-                // リアルタイムピッチ可視化
-                if (sessionProvider.referencePitches.isNotEmpty)
-                  RealtimePitchVisualizer(
-                    currentPitch: sessionProvider.currentPitch,
-                    referencePitches: sessionProvider.referencePitches,
-                    recordedPitches: sessionProvider.recordedPitches,
-                    isRecording: sessionProvider.isRecording,
-                  ),
-
-                const SizedBox(height: 20),
-
-                // コントロールボタン
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      body: Stack(
+        children: [
+          Consumer<KaraokeSessionProvider>(
+            builder: (context, sessionProvider, child) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: _isPlaying ? () => _player.stop() : _playAudio,
-                      icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
-                      label: Text(_isPlaying ? '停止' : '音源再生'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isPlaying ? Colors.orange : Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    if (!kIsWeb)
-                      ElevatedButton.icon(
-                        onPressed: sessionProvider.isRecording ? _stopRecording : _startRecording,
-                        icon: Icon(sessionProvider.isRecording ? Icons.stop : Icons.mic),
-                        label: Text(sessionProvider.isRecording ? '録音停止' : '録音開始'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: sessionProvider.isRecording ? Colors.red : Colors.green,
-                          foregroundColor: Colors.white,
+                    // ピッチデータ読み込み状態
+                    if (_isLoadingReferencePitches) ...[
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 10),
+                      Text(_analysisStatus),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // 解析状況表示
+                    if (!_isLoadingReferencePitches && _analysisStatus.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
                         ),
+                        child: Text('状態: $_analysisStatus', style: TextStyle(color: Colors.blue[800])),
+                      ),
+
+                    // リアルタイムピッチ可視化
+                    if (sessionProvider.referencePitches.isNotEmpty)
+                      RealtimePitchVisualizer(
+                        currentPitch: sessionProvider.currentPitch,
+                        referencePitches: sessionProvider.referencePitches,
+                        recordedPitches: sessionProvider.recordedPitches,
+                        isRecording: sessionProvider.isRecording,
+                      ),
+
+                    const SizedBox(height: 20),
+
+                    // Phase 3: 新しいピッチ可視化ウィジェット
+                    if (sessionProvider.referencePitches.isNotEmpty && sessionProvider.isRecording) ...[
+                      PitchVisualizationWidget(
+                        currentPitch: sessionProvider.currentPitch,
+                        referencePitch: _getCurrentReferencePitch(sessionProvider),
+                        pitchHistory: _pitchHistory,
+                        height: 150.0,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Phase 3: リアルタイムスコア表示
+                    if (sessionProvider.isRecording && _scoreHistory.isNotEmpty) ...[
+                      RealtimeScoreWidget(
+                        currentScore: _currentScore,
+                        maxScore: _maxScore,
+                        averageScore: _averageScore,
+                        scoreLevel: _currentLevel,
+                        scoreHistory: _scoreHistory.map((s) => s.score).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // コントロールボタン
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _isPlaying ? () => _player.stop() : _playAudio,
+                          icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
+                          label: Text(_isPlaying ? '停止' : '音源再生'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isPlaying ? Colors.orange : Colors.blue,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                        if (!kIsWeb)
+                          ElevatedButton.icon(
+                            onPressed: sessionProvider.isRecording ? _stopRecording : _startRecording,
+                            icon: Icon(sessionProvider.isRecording ? Icons.stop : Icons.mic),
+                            label: Text(sessionProvider.isRecording ? '録音停止' : '録音開始'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: sessionProvider.isRecording ? Colors.red : Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    if (kIsWeb) ...[
+                      const SizedBox(height: 10),
+                      const Text('Webでは録音機能は利用できません'),
+                    ],
+
+                    const SizedBox(height: 20),
+
+                    // セッション状態表示
+                    _buildSessionStatusCard(sessionProvider),
+
+                    const SizedBox(height: 20),
+
+                    // Phase 3: プログレッシブスコア表示
+                    if (sessionProvider.songResult != null)
+                      ProgressiveScoreDisplay(
+                        songResult: sessionProvider.songResult!,
+                        displayMode: sessionProvider.scoreDisplayMode,
+                        onTap: () => sessionProvider.toggleScoreDisplay(),
                       ),
                   ],
                 ),
-
-                if (kIsWeb) ...[
-                  const SizedBox(height: 10),
-                  const Text('Webでは録音機能は利用できません'),
-                ],
-
-                const SizedBox(height: 20),
-
-                // セッション状態表示
-                _buildSessionStatusCard(sessionProvider),
-
-                const SizedBox(height: 20),
-
-                // Phase 3: プログレッシブスコア表示
-                if (sessionProvider.songResult != null)
-                  ProgressiveScoreDisplay(
-                    songResult: sessionProvider.songResult!,
-                    displayMode: sessionProvider.scoreDisplayMode,
-                    onTap: () => sessionProvider.toggleScoreDisplay(),
-                  ),
-              ],
+              );
+            },
+          ),
+          // デバッグオーバーレイ表示
+          if (_showDebugOverlay)
+            Positioned(
+              right: 16,
+              top: 16,
+              child: DebugInfoOverlay(
+                debugLogs: _debugLogs,
+                isVisible: _showDebugOverlay,
+              ),
             ),
-          );
-        },
+        ],
       ),
     ),
     );
@@ -864,5 +1117,98 @@ class _KaraokePageState extends State<KaraokePage> {
       case KaraokeSessionState.error:
         return 'エラー';
     }
+  }
+
+  /// Phase 3: 検証結果の統合デバッグ出力
+  Future<void> _outputVerificationDebugInfo(
+    String audioFile,
+    String songTitle,
+    dynamic verificationResult, // PitchVerificationResult
+  ) async {
+    if (kDebugMode) {
+      final stats = verificationResult.statistics;
+      
+      debugPrint('=== 🎯 ピッチ検証結果 ===');
+      debugPrint('楽曲: $songTitle');
+      debugPrint('音源ファイル: $audioFile');
+      debugPrint('分析日時: ${verificationResult.analyzedAt.toLocal()}');
+      debugPrint('キャッシュ使用: ${verificationResult.fromCache}');
+      debugPrint('総ピッチ数: ${stats.totalCount}');
+      debugPrint('有効ピッチ数: ${stats.validCount}');
+      debugPrint('有効率: ${stats.validRate.toStringAsFixed(1)}%');
+      
+      if (stats.validCount > 0) {
+        debugPrint('ピッチ統計:');
+        debugPrint('  範囲: ${stats.minPitch.toStringAsFixed(1)}Hz 〜 ${stats.maxPitch.toStringAsFixed(1)}Hz');
+        debugPrint('  平均: ${stats.avgPitch.toStringAsFixed(1)}Hz');
+        debugPrint('  範囲幅: ${stats.pitchRange.toStringAsFixed(1)}Hz');
+        debugPrint('  期待範囲適合: ${stats.isInExpectedRange ? "✅" : "❌"}');
+      }
+
+      // 詳細なデバッグ情報を表示
+      if (kDebugMode) {
+        debugPrint('詳細な検証結果:');
+        debugPrint('  - 楽曲タイトル: $songTitle');
+        debugPrint('  - 音源ファイル: $audioFile');
+        debugPrint('  - キャッシュ使用: ${verificationResult.fromCache}');
+        debugPrint('  - 分析日時: ${verificationResult.analyzedAt.toIso8601String()}');
+        debugPrint('  - 統計情報:');
+        debugPrint('    - 総ピッチ数: ${stats.totalCount}');
+        debugPrint('    - 有効ピッチ数: ${stats.validCount}');
+        debugPrint('    - 有効率: ${stats.validRate}%');
+        debugPrint('    - 最小ピッチ: ${stats.minPitch}Hz');
+        debugPrint('    - 最大ピッチ: ${stats.maxPitch}Hz');
+        debugPrint('    - 平均ピッチ: ${stats.avgPitch}Hz');
+        debugPrint('    - ピッチ範囲: ${stats.pitchRange}Hz');
+        debugPrint('    - 期待範囲内: ${stats.isInExpectedRange}');
+      }
+    }
+  }
+
+  /// Phase 3: Test.wav用の高度な分析出力
+  void _outputAdvancedTestWavAnalysis(
+    String songTitle,
+    dynamic stats, // PitchStatistics
+    List<double> pitches,
+  ) {
+    debugPrint('⚠️ Test.wav高度分析モード ⚠️');
+    debugPrint('=== 📊 統計ベース分析 ===');
+    
+    if (stats.validCount > 0) {
+      // 期待範囲チェック
+      const expectedMin = 261.63; // C4 ド
+      const expectedMax = 523.25; // C5 ド
+      
+      if (stats.isInExpectedRange) {
+        debugPrint('✅ ピッチ範囲がドレミファソラシド（C4-C5）範囲に適合');
+      } else {
+        debugPrint('❌ ピッチ範囲がドレミファソラシドと不一致');
+        debugPrint('   期待範囲: ${expectedMin.toStringAsFixed(1)}Hz 〜 ${expectedMax.toStringAsFixed(1)}Hz');
+        debugPrint('   実際範囲: ${stats.minPitch.toStringAsFixed(1)}Hz 〜 ${stats.maxPitch.toStringAsFixed(1)}Hz');
+      }
+      
+      // 詳細なピッチサンプル表示
+      debugPrint('最初の10個のピッチ詳細:');
+      for (int i = 0; i < stats.firstTen.length; i++) {
+        final pitch = stats.firstTen[i];
+        final status = pitch > 0 ? '✓' : '✗';
+        debugPrint('  [$i] $status ${pitch.toStringAsFixed(2)}Hz');
+      }
+      
+      if (stats.lastTen.length > 0 && stats.totalCount > 10) {
+        debugPrint('最後の10個のピッチ詳細:');
+        final startIndex = stats.totalCount - stats.lastTen.length;
+        for (int i = 0; i < stats.lastTen.length; i++) {
+          final pitch = stats.lastTen[i];
+          final status = pitch > 0 ? '✓' : '✗';
+          debugPrint('  [${startIndex + i}] $status ${pitch.toStringAsFixed(2)}Hz');
+        }
+      }
+    } else {
+      debugPrint('❌ 有効なピッチが検出されませんでした！');
+      debugPrint('原因: Test.wavファイルのピッチ検出が完全に失敗');
+    }
+    
+    debugPrint('=== Test.wav高度分析終了 ===');
   }
 }

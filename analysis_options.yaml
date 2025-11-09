@@ -9,9 +9,22 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  errors:
+    # print文をエラーレベルに昇格（ガイドライン強制）
+    avoid_print: error
+    # 未使用変数もエラーレベルに昇格
+    unused_local_variable: error
+  exclude:
+    # ツールスクリプトは例外（ガイドライン準拠）
+    - tools/**
+    # Core/Infrastructure層は段階移行対象（既存コード保護）
+    - lib/core/utils/debug_logger.dart
+    - lib/infrastructure/**
+
 linter:
   rules:
-    # 基本ルール
+    # 基本ルール（ガイドライン準拠）
     prefer_const_constructors: true
     avoid_print: true
     prefer_final_fields: true

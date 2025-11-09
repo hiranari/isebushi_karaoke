@@ -16,11 +16,14 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:provider/provider.dart';
-import 'song_select_page.dart';
+import 'presentation/pages/song_select_page.dart';
 import 'presentation/pages/karaoke_page.dart';
+import 'presentation/pages/phase3_demo_page.dart';
 import 'application/providers/karaoke_session_provider.dart';
 import 'infrastructure/factories/service_locator.dart';
+import 'core/utils/debug_file_logger.dart';
 
 /// アプリケーションエントリーポイント
 /// 
@@ -46,6 +49,9 @@ import 'infrastructure/factories/service_locator.dart';
 void main() {
   // Initialize service locator with all dependencies
   ServiceLocator().initialize();
+  
+  // デバッグセッション開始
+  DebugFileLogger.startSession('アプリケーション起動');
   
   runApp(const MyApp());
 }
@@ -121,6 +127,8 @@ class MyApp extends StatelessWidget {
         routes: {
           '/': (context) => const SongSelectPage(),
           '/karaoke': (context) => const KaraokePage(),
+          // デバッグモードでのみPhase 3デモページを提供
+          if (kDebugMode) '/phase3-demo': (context) => const Phase3DemoPage(),
         },
       ),
     );

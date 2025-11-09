@@ -6,6 +6,8 @@ import '../services/pitch_detection_service.dart';
 import '../services/analysis_service.dart';
 import '../services/feedback_service.dart';
 import '../services/cache_service.dart';
+import '../../core/utils/enhanced_debug_logger.dart';
+import '../../domain/interfaces/i_logger.dart';
 
 /// 依存性注入のためのサービスロケーター
 /// 
@@ -55,7 +57,12 @@ class ServiceLocator {
     // Register service instances
     // Note: 静的メソッドのみのサービス（AudioProcessingService, ScoringService等）は登録不要
     
-    registerService<PitchDetectionService>(PitchDetectionService());
+    // ログサービスを最初に登録
+    registerService<ILogger>(EnhancedDebugLogger());
+    
+    // ログサービスを依存として注入
+    final logger = getService<ILogger>();
+    registerService<PitchDetectionService>(PitchDetectionService(logger: logger));
     registerService<AnalysisService>(AnalysisService());
     registerService<FeedbackService>(FeedbackService());
     registerService<CacheService>(CacheService());
@@ -73,6 +80,11 @@ class ServiceLocator {
   /// Returns the registered service instance of type T
   /// Throws [StateError] if the service is not registered
   T getService<T>() {
+    // If no services were registered yet, initialize defaults lazily.
+    if (_services.isEmpty) {
+      initialize();
+    }
+
     final service = _services[T];
     if (service == null) {
       throw StateError('Service of type $T is not registered');

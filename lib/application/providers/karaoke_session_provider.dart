@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import '../../domain/models/song_result.dart';
+import '../../domain/interfaces/i_logger.dart';
 import '../../infrastructure/services/scoring_service.dart';
 import '../../infrastructure/services/feedback_service.dart';
-import '../../core/utils/debug_logger.dart';
+import '../../infrastructure/factories/service_locator.dart';
 
 /// 歌唱セッション状態管理プロバイダー
 /// 
@@ -69,6 +70,9 @@ import '../../core/utils/debug_logger.dart';
 /// 
 /// 参照: [UMLドキュメント](../../UML_DOCUMENTATION.md#karaoke-session-provider)
 class KaraokeSessionProvider extends ChangeNotifier {
+  // Logger
+  late final ILogger _logger;
+
   // セッション状態
   KaraokeSessionState _state = KaraokeSessionState.ready;
   String? _selectedSongTitle;
@@ -81,6 +85,11 @@ class KaraokeSessionProvider extends ChangeNotifier {
   ScoreDisplayMode _scoreDisplayMode = ScoreDisplayMode.hidden;
   bool _isRecording = false;
   double? _currentPitch;
+
+  // コンストラクタ
+  KaraokeSessionProvider() {
+    _logger = ServiceLocator().getService<ILogger>();
+  }
 
   // Getters
   KaraokeSessionState get state => _state;
@@ -169,13 +178,13 @@ class KaraokeSessionProvider extends ChangeNotifier {
   /// 録音ピッチデータの置換
   /// 
   /// 実際の録音ファイルから抽出したピッチデータで、リアルタイムで生成された
-  /// シミュレーションピッチを置き換えます。
+  /// 一時的なピッチデータを置き換えます。
   /// 
   /// @param pitches 実際の録音から抽出されたピッチデータ
   void replaceRecordedPitches(List<double> pitches) {
     _recordedPitches.clear();
     _recordedPitches.addAll(pitches);
-    debugPrint('録音ピッチデータを置換: ${pitches.length}個のピッチ');
+    _logger.info('録音ピッチデータを置換: ${pitches.length}個のピッチ');
     notifyListeners();
   }
 
@@ -273,7 +282,7 @@ class KaraokeSessionProvider extends ChangeNotifier {
       _scoreDisplayMode = ScoreDisplayMode.totalScore;
       
     } catch (e) {
-      DebugLogger.error('歌唱分析中にエラーが発生しました', e);
+      _logger.error('歌唱分析中にエラーが発生しました', e);
       setError('分析中にエラーが発生しました: $e');
     }
     
