@@ -23,18 +23,20 @@ class VerifyPitchUseCase {
   /// Returns [PitchVerificationResult] 検証結果
   Future<PitchVerificationResult> execute({
     required String wavFilePath,
+    required bool isAsset,
     bool useCache = true,
     bool exportJson = false,
     String? outputDir,
   }) async {
     // WAVファイル存在確認
-    if (!await _validateWavFile(wavFilePath)) {
+    if (!await _validateWavFile(wavFilePath, isAsset)) {
       throw ArgumentError('WAVファイルが見つかりません: $wavFilePath');
     }
 
     // ピッチ検証実行
     final result = await _verificationService.verifyPitchData(
       wavFilePath,
+      isAsset: isAsset,
       useCache: useCache,
     );
 
@@ -57,6 +59,7 @@ class VerifyPitchUseCase {
   /// Returns [PitchVerificationResult] 比較結果を含む検証結果
   Future<PitchVerificationResult> executeWithComparison({
     required String wavFilePath,
+    required bool isAsset,
     required List<double> referencePitches,
     bool useCache = true,
     bool exportJson = false,
@@ -65,6 +68,7 @@ class VerifyPitchUseCase {
     // 基本検証実行
     final result = await execute(
       wavFilePath: wavFilePath,
+      isAsset: isAsset,
       useCache: useCache,
       exportJson: false, // 比較結果を含めるため、ここではJSON出力しない
     );
@@ -101,22 +105,24 @@ class VerifyPitchUseCase {
   /// Returns [List<double>] 抽出されたピッチデータ
   Future<List<double>> extractPitchesOnly({
     required String wavFilePath,
+    required bool isAsset,
     bool useCache = true,
   }) async {
-    if (!await _validateWavFile(wavFilePath)) {
+    if (!await _validateWavFile(wavFilePath, isAsset)) {
       throw ArgumentError('WAVファイルが見つかりません: $wavFilePath');
     }
 
     return await _verificationService.extractReferencePitches(
       wavFilePath,
+      isAsset: isAsset,
       useCache: useCache,
     );
   }
 
   /// WAVファイルの存在確認
-  Future<bool> _validateWavFile(String filePath) async {
+  Future<bool> _validateWavFile(String filePath, bool isAsset) async {
     // アセットファイルの場合は存在確認をスキップ
-    if (filePath.startsWith('assets/')) {
+    if (isAsset) {
       return true;
     }
 

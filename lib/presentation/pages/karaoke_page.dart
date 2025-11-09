@@ -21,7 +21,6 @@ import '../widgets/realtime_score_widget.dart';
 import '../widgets/debug/debug_info_overlay.dart';
 import '../../core/utils/singer_encoder.dart';
 import '../../core/utils/pitch_debug_helper.dart';
-import '../../domain/models/audio_analysis_result.dart';
 import '../../domain/interfaces/i_logger.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
@@ -80,6 +79,7 @@ class _KaraokePageState extends State<KaraokePage> {
     // Phase 3: 新しいアーキテクチャサービス初期化
     _verificationService = PitchVerificationService(
       pitchDetectionService: _pitchDetectionService,
+      logger: _logger,
     );
     _verifyPitchUseCase = VerifyPitchUseCase(
       verificationService: _verificationService,
@@ -145,6 +145,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // Phase 3: 新しいUseCaseパターンでピッチ検証実行
       final verificationResult = await _verifyPitchUseCase.execute(
         wavFilePath: audioFile,
+        isAsset: true, // 基準音源はアセット
         useCache: true,
         exportJson: false, // UI使用時はJSON出力なし
       );
@@ -567,7 +568,8 @@ class _KaraokePageState extends State<KaraokePage> {
       if (!mounted) return;
       final sessionProvider = context.read<KaraokeSessionProvider>();
       List<double> pitches = await _pitchDetectionService.extractPitchFromAudio(
-        recordingPath,
+        path: recordingPath,
+        isAsset: false, // 録音ファイルはローカルファイル
         referencePitches: sessionProvider.referencePitches, // 基準ピッチを渡す
       );
       

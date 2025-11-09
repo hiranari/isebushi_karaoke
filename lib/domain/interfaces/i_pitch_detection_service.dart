@@ -5,8 +5,9 @@ abstract class IPitchDetectionService {
   ///
   /// Returns a list of detected pitch values in Hz
   /// Throws [PitchDetectionException] if detection fails
-  Future<List<double>> extractPitchFromAudio(
-    String filePath, {
+  Future<List<double>> extractPitchFromAudio({
+    required String path,
+    required bool isAsset,
     List<double>? referencePitches,
   });
 
@@ -19,5 +20,5 @@ abstract class IPitchDetectionService {
   bool isValidPitch(double pitch);
 
   /// Normalize frequency to standard range
-  double normalizeFrequency(double frequency);
+  double normalizeFrequency(double frequency, {double? referencePitch});
 }

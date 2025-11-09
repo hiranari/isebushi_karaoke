@@ -12,8 +12,13 @@ import '../../core/utils/pcm_processor.dart';
 /// 歌唱評価システムで使用可能な形式に変換します。
 class AudioProcessingService implements IAudioProcessingService {
   @override
-  Future<List<int>> extractPcmFromWav(String filePath) async {
-    final samples = await WavProcessor.loadFromFile(filePath);
+  Future<List<int>> extractPcm({required String path, required bool isAsset}) async {
+    final Int16List samples;
+    if (isAsset) {
+      samples = await WavProcessor.loadFromAsset(path);
+    } else {
+      samples = await WavProcessor.loadFromFile(path);
+    }
     return samples.toList();
   }
 

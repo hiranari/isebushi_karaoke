@@ -94,17 +94,19 @@ class PitchDetectionService implements IPitchDetectionService {
   }
 
   @override
-  Future<List<double>> extractPitchFromAudio(
-    String filePath, {
+  Future<List<double>> extractPitchFromAudio({
+    required String path,
+    required bool isAsset,
     List<double>? referencePitches,
   }) async {
     initialize();
     try {
-      if (!_audioProcessor.isWavFile(filePath)) {
-        throw PitchDetectionException('WAVファイルのみサポートしています: $filePath');
+      if (!_audioProcessor.isWavFile(path)) {
+        throw PitchDetectionException('WAVファイルのみサポートしています: $path');
       }
 
-      final pcmData = await _audioProcessor.extractPcmFromWav(filePath);
+      final pcmData =
+          await _audioProcessor.extractPcm(path: path, isAsset: isAsset);
       final pcm16 = Int16List.fromList(pcmData);
       final normalizedPcm = PcmProcessor.normalize(pcm16);
 
