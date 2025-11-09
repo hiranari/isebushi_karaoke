@@ -34,7 +34,7 @@ class AudioProcessingService implements IAudioProcessingService {
     }
     try {
       // ファイルヘッダだけでも読めればOKとする
-      await WavProcessor.loadFromFile(filePath, readSamples: false);
+      await WavProcessor.loadFromFile(filePath);
       return true;
     } catch (e) {
       return false;

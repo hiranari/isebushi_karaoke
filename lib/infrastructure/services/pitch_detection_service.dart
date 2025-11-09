@@ -8,6 +8,7 @@ import '../../domain/interfaces/i_logger.dart';
 import '../../domain/interfaces/i_audio_processing_service.dart';
 import '../../domain/interfaces/i_pitch_detection_service.dart';
 import 'audio_processing_service.dart';
+import '../../core/utils/pcm_processor.dart';
 
 /// ハーモニクス分析結果を格納するクラス
 class HarmonicsAnalysisResult {
