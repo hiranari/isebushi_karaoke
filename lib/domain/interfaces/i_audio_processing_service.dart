@@ -15,7 +15,7 @@ abstract class IAudioProcessingService {
 
   /// Extract PCM data from a WAV file
   ///
-  /// Returns raw PCM data as List<int>
+  /// Returns raw PCM data as [List<int>]
   Future<List<int>> extractPcmFromWav(String filePath);
 
   /// Check if the file is a valid WAV format
