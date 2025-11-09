@@ -80,6 +80,11 @@ class ServiceLocator {
   /// Returns the registered service instance of type T
   /// Throws [StateError] if the service is not registered
   T getService<T>() {
+    // If no services were registered yet, initialize defaults lazily.
+    if (_services.isEmpty) {
+      initialize();
+    }
+
     final service = _services[T];
     if (service == null) {
       throw StateError('Service of type $T is not registered');

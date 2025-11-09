@@ -19,8 +19,17 @@ void main() {
     });
 
     test('C3音（130.81Hz）の検出テスト', () async {
-      final audioFile = File(path.join(testAudioDir, 'C3.wav'));
-      expect(await audioFile.exists(), true, reason: 'テスト用音声ファイルが存在しません');
+      // テスト用ファイル名はリポジトリ内で周波数サフィックス付きで管理されている場合があるため
+      // 該当ディレクトリから 'C3' で始まるファイルを探索して使用する
+      final dir = Directory(testAudioDir);
+      final candidates = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => path.basename(f.path).toUpperCase().startsWith('C3'))
+          .toList();
+
+      expect(candidates.isNotEmpty, true, reason: 'テスト用音声ファイルが存在しません');
+      final audioFile = candidates.first;
 
       // 音声ファイルを読み込んでピッチ検出を実行
       final result = await service.extractPitchFromAudio(
@@ -29,7 +38,7 @@ void main() {
       );
       
       // 統計情報を取得
-      final stats = service.getPitchStatistics(result.pitches);
+  final stats = service.getPitchStatistics(result.pitches);
 
       // 期待値との比較
       // C3の周波数は130.81Hz

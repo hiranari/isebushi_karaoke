@@ -19,8 +19,17 @@ void main() {
     });
 
     test('C2音（65.41Hz）の検出テスト', () async {
-      final audioFile = File(path.join(baseTestDir, 'C2.wav'));
-      expect(await audioFile.exists(), true, reason: 'テスト用音声ファイル C2.wav が存在しません');
+      // リポジトリ内のファイル名は "C2_65.41Hz.wav" のように周波数を含む場合があるため、
+      // ディレクトリから 'C2' で始まるファイルを探して使用する
+      final dir = Directory(baseTestDir);
+      final candidates = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => path.basename(f.path).toUpperCase().startsWith('C2'))
+          .toList();
+
+      expect(candidates.isNotEmpty, true, reason: 'テスト用音声ファイル C2 が存在しません');
+      final audioFile = candidates.first;
 
       final result = await service.extractPitchFromAudio(
         sourcePath: audioFile.path,

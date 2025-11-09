@@ -14,6 +14,7 @@ dependencies:
   path_provider: ^2.1.1  # Phase 1で追加
   provider: ^6.1.1  # Phase 3で追加
   path: ^1.9.1
+  fftea: ^1.5.0+1
 
 dev_dependencies:
   flutter_test:

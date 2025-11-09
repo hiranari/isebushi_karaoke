@@ -2,13 +2,17 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../domain/interfaces/i_logger.dart';
 
 /// デバッグ情報をファイルに自動保存するクラス
 /// Copilotが読み取り可能なログファイルを生成
-class DebugFileLogger {
+class DebugFileLogger implements ILogger {
   static const String _debugFileName = 'debug_session.md';
   static final List<DebugEntry> _entries = [];
   static String? _documentsPath;
+  
+  /// インスタンス用コンストラクタ（静的メソッドとの互換のため）
+  DebugFileLogger();
   
   /// デバッグエントリ
   static void log(String category, String message, {Map<String, dynamic>? data}) {
@@ -26,6 +30,35 @@ class DebugFileLogger {
     
     // ファイルに即座に保存
     _saveToFile();
+  }
+
+  // --- ILogger 実装（インスタンスメソッドは既存の static ロガーに委譲）
+  @override
+  void debug(String message) {
+    DebugFileLogger.log('DEBUG', message);
+  }
+
+  @override
+  void info(String message) {
+    DebugFileLogger.log('INFO', message);
+  }
+
+  @override
+  void warning(String message) {
+    DebugFileLogger.log('WARNING', message);
+  }
+
+  @override
+  void error(String message, [Object? error, StackTrace? stackTrace]) {
+    final data = <String, dynamic>{};
+    if (error != null) data['error'] = error.toString();
+    if (stackTrace != null) data['stack'] = stackTrace.toString();
+    DebugFileLogger.log('ERROR', message, data: data);
+  }
+
+  @override
+  void success(String message) {
+    DebugFileLogger.log('SUCCESS', message);
   }
   
   /// セッション開始

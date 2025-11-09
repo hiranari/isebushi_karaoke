@@ -566,7 +566,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // 録音ファイルからピッチを抽出（ファイルシステム対応、基準ピッチ使用）
       if (!mounted) return;
       final sessionProvider = context.read<KaraokeSessionProvider>();
-      var analysisResult = await _pitchDetectionService.extractPitchFromAudio(
+      var analysisResult = await _pitchDetectionService.extractPitchAnalysisFromAudio(
         sourcePath: recordingPath,
         isAsset: false,
         referencePitches: sessionProvider.referencePitches, // 基準ピッチを渡す
