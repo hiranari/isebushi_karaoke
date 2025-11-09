@@ -8,7 +8,7 @@ import 'package:record/record.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../infrastructure/services/pitch_detection_service.dart';
+import '../../domain/interfaces/i_pitch_detection_service.dart';
 import '../../infrastructure/services/pitch_comparison_service.dart';
 import '../../infrastructure/services/pitch_verification_service.dart';
 import '../../infrastructure/factories/service_locator.dart';
@@ -21,7 +21,6 @@ import '../widgets/realtime_score_widget.dart';
 import '../widgets/debug/debug_info_overlay.dart';
 import '../../core/utils/singer_encoder.dart';
 import '../../core/utils/pitch_debug_helper.dart';
-import '../../domain/models/audio_analysis_result.dart';
 import '../../domain/interfaces/i_logger.dart';
 
 /// Phase 3: 新しいアーキテクチャを使用したカラオケページ
@@ -47,7 +46,7 @@ class _KaraokePageState extends State<KaraokePage> {
   late final ILogger _logger;
 
   // Phase 1サービス（既存機能）
-  late final PitchDetectionService _pitchDetectionService;
+  late final IPitchDetectionService _pitchDetectionService;
   
   // Phase 3: 新しいアーキテクチャサービス
   late final PitchVerificationService _verificationService;
@@ -75,11 +74,12 @@ class _KaraokePageState extends State<KaraokePage> {
     
     // Service Locatorから依存関係を取得
     _logger = ServiceLocator().getService<ILogger>();
-    _pitchDetectionService = ServiceLocator().getService<PitchDetectionService>();
+    _pitchDetectionService = ServiceLocator().getService<IPitchDetectionService>();
     
     // Phase 3: 新しいアーキテクチャサービス初期化
     _verificationService = PitchVerificationService(
       pitchDetectionService: _pitchDetectionService,
+      logger: _logger,
     );
     _verifyPitchUseCase = VerifyPitchUseCase(
       verificationService: _verificationService,
@@ -145,6 +145,7 @@ class _KaraokePageState extends State<KaraokePage> {
       // Phase 3: 新しいUseCaseパターンでピッチ検証実行
       final verificationResult = await _verifyPitchUseCase.execute(
         wavFilePath: audioFile,
+        isAsset: true, // 基準音源はアセット
         useCache: true,
         exportJson: false, // UI使用時はJSON出力なし
       );
@@ -566,9 +567,9 @@ class _KaraokePageState extends State<KaraokePage> {
       // 録音ファイルからピッチを抽出（ファイルシステム対応、基準ピッチ使用）
       if (!mounted) return;
       final sessionProvider = context.read<KaraokeSessionProvider>();
-      var analysisResult = await _pitchDetectionService.extractPitchAnalysisFromAudio(
-        sourcePath: recordingPath,
-        isAsset: false,
+      List<double> pitches = await _pitchDetectionService.extractPitchFromAudio(
+        path: recordingPath,
+        isAsset: false, // 録音ファイルはローカルファイル
         referencePitches: sessionProvider.referencePitches, // 基準ピッチを渡す
       );
       
@@ -584,14 +585,14 @@ class _KaraokePageState extends State<KaraokePage> {
         }
 
         debugPrint('録音ピッチサンプル（最初の10個）:');
-        final recSample = analysisResult.pitches.take(10).toList();
+        final recSample = pitches.take(10).toList();
         for (int i = 0; i < recSample.length; i++) {
           debugPrint('  [$i]: ${recSample[i].toStringAsFixed(2)}Hz');
         }
 
         // 統計情報
         final validRef = sessionProvider.referencePitches.where((p) => p > 0).toList();
-        final validRec = analysisResult.pitches.where((p) => p > 0).toList();
+        final validRec = pitches.where((p) => p > 0).toList();
         if (validRef.isNotEmpty && validRec.isNotEmpty) {
           final avgRef = validRef.reduce((a, b) => a + b) / validRef.length;
           double avgRec = validRec.reduce((a, b) => a + b) / validRec.length;
@@ -600,9 +601,9 @@ class _KaraokePageState extends State<KaraokePage> {
           
           // 参照ピッチを使用して録音ピッチにオクターブ補正を適用
           final correctedRecPitches = <double>[];
-          for (double pitch in analysisResult.pitches) {
+          for (double pitch in pitches) {
             if (pitch > 0) {
-              double correctedPitch = _pitchDetectionService.correctOctave(pitch, avgRef);
+              double correctedPitch = _pitchDetectionService.normalizeFrequency(pitch, referencePitch: avgRef);
               correctedRecPitches.add(correctedPitch);
             } else {
               correctedRecPitches.add(0.0);
@@ -620,22 +621,17 @@ class _KaraokePageState extends State<KaraokePage> {
             debugPrint('ピッチ比率: ${pitchRatio.toStringAsFixed(3)}');
             debugPrint('平均差: ${(avgCorrected - avgRef).toStringAsFixed(2)}Hz');
             
-            // 新しいAudioAnalysisResultを作成（補正後のピッチ使用）
-            analysisResult = AudioAnalysisResult(
-              pitches: correctedRecPitches,
-              sampleRate: analysisResult.sampleRate,
-              createdAt: analysisResult.createdAt,
-              sourceFile: analysisResult.sourceFile,
-            );
+            // 補正後のピッチで更新
+            pitches = correctedRecPitches;
           }
           
           // ピッチ範囲の確認
-          final minRef = validRef.reduce((a, b) => a < b ? a : b);
-          final maxRef = validRef.reduce((a, b) => a > b ? a : b);
-          final validFinalRec = analysisResult.pitches.where((p) => p > 0).toList();
+          final minRef = validRef.reduce(math.min);
+          final maxRef = validRef.reduce(math.max);
+          final validFinalRec = pitches.where((p) => p > 0).toList();
           if (validFinalRec.isNotEmpty) {
-            final minRec = validFinalRec.reduce((a, b) => a < b ? a : b);
-            final maxRec = validFinalRec.reduce((a, b) => a > b ? a : b);
+            final minRec = validFinalRec.reduce(math.min);
+            final maxRec = validFinalRec.reduce(math.max);
             debugPrint('基準ピッチ範囲: ${minRef.toStringAsFixed(2)}Hz - ${maxRef.toStringAsFixed(2)}Hz');
             debugPrint('最終録音ピッチ範囲: ${minRec.toStringAsFixed(2)}Hz - ${maxRec.toStringAsFixed(2)}Hz');
           }
@@ -644,15 +640,15 @@ class _KaraokePageState extends State<KaraokePage> {
         // 詳細な比較分析
         PitchDebugHelper.comparePitchData(
           sessionProvider.referencePitches, 
-          analysisResult.pitches
+          pitches
         );
         
         debugPrint('=== デバッグ終了 ===');
         
         // 既存の録音ピッチをクリアして、実際の録音データで置き換える
-        sessionProvider.replaceRecordedPitches(analysisResult.pitches);
+        sessionProvider.replaceRecordedPitches(pitches);
         
-        debugPrint('録音ピッチ抽出完了: ${analysisResult.pitches.length}個のピッチ');
+        debugPrint('録音ピッチ抽出完了: ${pitches.length}個のピッチ');
         _showSnackBar('録音音声の分析が完了しました');
       }
       

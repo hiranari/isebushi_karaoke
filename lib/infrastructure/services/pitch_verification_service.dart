@@ -1,48 +1,48 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
+import '../../domain/interfaces/i_logger.dart';
+import '../../domain/interfaces/i_pitch_detection_service.dart';
 import '../../domain/interfaces/i_pitch_verification_service.dart';
+import '../../domain/models/audio_analysis_result.dart';
 import '../../domain/models/pitch_verification_result.dart';
-import 'pitch_detection_service.dart';
 import 'cache_service.dart';
 
 /// ピッチ検証サービス実装
-/// 
+///
 /// 基準ピッチデータの検証、統計分析、JSON出力を実装
 /// カラオケ画面とツールの共通ロジックを提供
 class PitchVerificationService implements IPitchVerificationService {
-  final PitchDetectionService _pitchDetectionService;
+  final IPitchDetectionService _pitchDetectionService;
+  final ILogger _logger;
 
   PitchVerificationService({
-    required PitchDetectionService pitchDetectionService,
-  }) : _pitchDetectionService = pitchDetectionService;
-
-  /// サービス初期化
-  void initialize() {
-    _pitchDetectionService.initialize();
-  }
+    required IPitchDetectionService pitchDetectionService,
+    required ILogger logger,
+  })  : _pitchDetectionService = pitchDetectionService,
+        _logger = logger;
 
   @override
   Future<PitchVerificationResult> verifyPitchData(
-    String wavFilePath, {
+    String path, {
+    required bool isAsset,
     bool useCache = true,
   }) async {
-    _logger.info('ピッチ検証開始: $wavFilePath (キャッシュ使用: $useCache)');
-    
+    _logger.info('ピッチ検証開始: $path (キャッシュ使用: $useCache, isAsset: $isAsset)');
+
     final pitches = await extractReferencePitches(
-      wavFilePath,
+      path,
+      isAsset: isAsset,
       useCache: useCache,
     );
 
-    // キャッシュ確認
-    final cachedResult = useCache 
-        ? await CacheService.loadFromCache(wavFilePath)
-        : null;
-    
+    final cachedResult =
+        useCache ? await CacheService.loadFromCache(path) : null;
+
     final statistics = _calculateStatistics(pitches);
-    
+
     return PitchVerificationResult(
-      wavFilePath: wavFilePath,
+      wavFilePath: path,
       analyzedAt: cachedResult?.createdAt ?? DateTime.now(),
       pitches: pitches,
       statistics: statistics,
@@ -52,29 +52,33 @@ class PitchVerificationService implements IPitchVerificationService {
 
   @override
   Future<List<double>> extractReferencePitches(
-    String wavFilePath, {
+    String path, {
+    required bool isAsset,
     bool useCache = true,
   }) async {
-    // キャッシュチェック
     if (useCache) {
-      final cachedResult = await CacheService.loadFromCache(wavFilePath);
+      final cachedResult = await CacheService.loadFromCache(path);
       if (cachedResult != null) {
         return cachedResult.pitches;
       }
     }
 
-    // 新規解析
-    final analysisResult = await _pitchDetectionService.extractPitchFromAudio(
-      sourcePath: wavFilePath,
-      isAsset: true,
+    final pitches = await _pitchDetectionService.extractPitchFromAudio(
+      path: path,
+      isAsset: isAsset,
     );
 
-    // キャッシュに保存
     if (useCache) {
-      await CacheService.saveToCache(wavFilePath, analysisResult);
+      final analysisResultForCache = AudioAnalysisResult(
+        pitches: pitches,
+        sampleRate: 44100,
+        createdAt: DateTime.now(),
+        sourceFile: path,
+      );
+      await CacheService.saveToCache(path, analysisResultForCache);
     }
 
-    return analysisResult.pitches;
+    return pitches;
   }
 
   @override
@@ -82,10 +86,7 @@ class PitchVerificationService implements IPitchVerificationService {
     PitchVerificationResult result,
     String outputPath,
   ) async {
-    // 出力ディレクトリ確保
     await _ensureOutputDirectory(outputPath);
-    
-    // JSON形式でファイル出力
     final file = File(outputPath);
     final jsonString = _formatJsonOutput(result.toJson());
     await file.writeAsString(jsonString);

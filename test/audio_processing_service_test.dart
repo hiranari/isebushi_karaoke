@@ -7,6 +7,12 @@ import 'dart:typed_data';
 /// 音声処理ロジックとPCMデータ操作をテストします
 void main() {
   group('AudioProcessingService Tests', () {
+    late AudioProcessingService service;
+
+    setUp(() {
+      service = AudioProcessingService();
+    });
+
     group('PCMデータ処理', () {
       test('PCMデータの正規化', () {
         // 16bitのテストデータ（-32768 ~ 32767の範囲）
@@ -18,7 +24,7 @@ void main() {
           -16384, // 負の半分
         ]);
 
-        final normalized = AudioProcessingService.normalizePcmData(testData);
+        final normalized = service.normalize(testData);
 
         expect(normalized.length, equals(testData.length));
         
@@ -31,14 +37,14 @@ void main() {
 
       test('空のPCMデータの正規化', () {
         final emptyData = Int16List(0);
-        final normalized = AudioProcessingService.normalizePcmData(emptyData);
+        final normalized = service.normalize(emptyData);
         
         expect(normalized, isEmpty);
       });
 
       test('単一値のPCMデータの正規化', () {
         final singleValue = Int16List.fromList([1000]);
-        final normalized = AudioProcessingService.normalizePcmData(singleValue);
+        final normalized = service.normalize(singleValue);
         
         expect(normalized.length, equals(1));
         expect(normalized[0], equals(32767)); // 最大値まで正規化される
@@ -46,7 +52,7 @@ void main() {
 
       test('全て同じ値のPCMデータの正規化', () {
         final sameValues = Int16List.fromList([500, 500, 500, 500]);
-        final normalized = AudioProcessingService.normalizePcmData(sameValues);
+        final normalized = service.normalize(sameValues);
         
         expect(normalized.length, equals(4));
         // 全て同じ値の場合、最大値まで正規化される
@@ -61,7 +67,7 @@ void main() {
           -1,     // 小さな負の値
         ]);
 
-        final normalized = AudioProcessingService.normalizePcmData(extremeData);
+        final normalized = service.normalize(extremeData);
 
         expect(normalized.length, equals(4));
         // 極端な値も適切に処理される
@@ -73,21 +79,23 @@ void main() {
     group('WAVファイル処理', () {
       test('無効なWAVファイルパスでのエラーハンドリング', () async {
         expect(
-          () async => await AudioProcessingService.extractPcmFromWavFile('/invalid/path.wav'),
+          () async => await service.extractPcm(path: '/invalid/path.wav', isAsset: false),
           throwsA(isA<Exception>()),
         );
       });
 
       test('空のファイルパスでのエラーハンドリング', () async {
         expect(
-          () async => await AudioProcessingService.extractPcmFromWavFile(''),
+          () async => await service.extractPcm(path: '', isAsset: false),
           throwsA(isA<Exception>()),
         );
       });
 
       test('nullファイルパスでのエラーハンドリング', () async {
+        // Note: Dart's null safety prevents passing null directly.
+        // This test now checks for an empty path, which is a more realistic error case.
         expect(
-          () async => await AudioProcessingService.extractPcmFromWavFile(''),
+          () async => await service.extractPcm(path: '', isAsset: false),
           throwsA(isA<Exception>()),
         );
       });
@@ -149,7 +157,7 @@ void main() {
         }
 
         final stopwatch = Stopwatch()..start();
-        final normalized = AudioProcessingService.normalizePcmData(largeData);
+        final normalized = service.normalize(largeData);
         stopwatch.stop();
 
         expect(normalized.length, equals(largeData.length));
@@ -158,7 +166,7 @@ void main() {
 
       test('非常に小さなPCMデータの処理', () {
         final tinyData = Int16List.fromList([1]);
-        final normalized = AudioProcessingService.normalizePcmData(tinyData);
+        final normalized = service.normalize(tinyData);
         
         expect(normalized.length, equals(1));
         expect(normalized[0], equals(32767)); // 最大値まで正規化される
@@ -174,7 +182,7 @@ void main() {
           32766,  // 最大値-1
         ]);
 
-        final normalized = AudioProcessingService.normalizePcmData(boundaryData);
+        final normalized = service.normalize(boundaryData);
 
         expect(normalized.length, equals(4));
         for (final value in normalized) {

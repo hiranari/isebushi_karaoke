@@ -1,49 +1,25 @@
-import '../models/pitch_verification_result.dart';
+import '../../domain/models/pitch_verification_result.dart';
 
-/// ピッチ検証サービスインターフェース
-/// 
-/// 基準ピッチデータの検証、統計分析、JSON出力を担当
-/// カラオケ画面とツールの共通ロジック抽象化
+/// ピッチ検証サービスのインターフェース
 abstract class IPitchVerificationService {
-  /// ピッチデータを検証し、詳細な分析結果を返す
-  /// 
-  /// [wavFilePath] 検証対象のWAVファイルパス
-  /// [useCache] キャッシュを使用するかどうか
-  /// 
-  /// Returns [PitchVerificationResult] 検証結果（統計情報含む）
+  /// ピッチデータを検証し、統計情報を生成
   Future<PitchVerificationResult> verifyPitchData(
-    String wavFilePath, {
+    String path, {
+    required bool isAsset,
     bool useCache = true,
   });
 
-  /// WAVファイルから基準ピッチを抽出
-  /// 
-  /// [wavFilePath] 対象のWAVファイルパス
-  /// [useCache] キャッシュを使用するかどうか
-  /// 
-  /// Returns [List<double>] 抽出されたピッチデータ（Hz）
+  /// 基準ピッチデータを抽出
   Future<List<double>> extractReferencePitches(
-    String wavFilePath, {
+    String path, {
+    required bool isAsset,
     bool useCache = true,
   });
 
-  /// 検証結果をJSONファイルに出力
-  /// 
-  /// [result] 出力する検証結果
-  /// [outputPath] 出力先ファイルパス
-  Future<void> exportToJson(
-    PitchVerificationResult result,
-    String outputPath,
-  );
+  /// 結果をJSON形式でエクスポート
+  Future<void> exportToJson(PitchVerificationResult result, String outputPath);
 
-  /// 2つのピッチデータを比較し、類似度統計を計算
-  /// 
-  /// [pitches] 比較対象のピッチデータ
-  /// [referencePitches] 基準となるピッチデータ
-  /// 
-  /// Returns [ComparisonStats] 比較統計情報
+  /// 基準ピッチとの比較統計を計算
   ComparisonStats compareWithReference(
-    List<double> pitches,
-    List<double> referencePitches,
-  );
+      List<double> pitches, List<double> referencePitches);
 }

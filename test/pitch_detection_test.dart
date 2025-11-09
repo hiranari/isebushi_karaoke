@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isebushi_karaoke/core/utils/dummy_logger.dart';
+import 'package:isebushi_karaoke/domain/interfaces/i_audio_processing_service.dart';
 import 'package:isebushi_karaoke/infrastructure/services/pitch_detection_service.dart';
 import 'dart:typed_data';
 import 'dart:math' as math;
+
+import 'mocks/mock_audio_processing_service.dart';
 
 void main() {
   setUpAll(() {
@@ -11,9 +14,14 @@ void main() {
 
   group('PitchDetectionService', () {
     late PitchDetectionService service;
+    late IAudioProcessingService mockAudioProcessor;
 
     setUp(() {
-      service = PitchDetectionService(logger: DummyLogger());
+      mockAudioProcessor = MockAudioProcessingService();
+      service = PitchDetectionService(
+        logger: DummyLogger(),
+        audioProcessor: mockAudioProcessor,
+      );
       service.initialize();
     });
 
