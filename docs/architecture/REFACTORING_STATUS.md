@@ -36,8 +36,8 @@
 ### 優先度: 高（必須）
 
 #### 1. サービス実装の更新
-- [ ] `AudioProcessingService` を `IAudioProcessingService` に準拠させる
-- [ ] `PitchDetectionService` を `IPitchDetectionService` に準拠させる
+- [x] `AudioProcessingService` を `IAudioProcessingService` に準拠させる
+- [x] `PitchDetectionService` を `IPitchDetectionService` に準拠させる
 - [ ] `ScoringService` を `IScoringService` に準拠させる
 - [ ] `AnalysisService` を `IAnalysisService` に準拠させる
 - [ ] `FeedbackService` を `IFeedbackService` に準拠させる
@@ -46,6 +46,7 @@
 #### 2. インポートパスの更新
 - [ ] サービスファイル内のインポート文をすべて更新する
 - [ ] プロバイダファイル内のインポート文をすべて更新する
+- [x] `karaoke_page.dart` のインポートとロジックを更新済み
 - [ ] ウィジェットファイル内のインポート文をすべて更新する
 - [ ] ページファイル内のインポート文をすべて更新する
 - [ ] テストファイルのインポートを更新する
@@ -123,18 +124,19 @@ lib/
 
 ## 次のステップ (Next Steps)
 
-1. **短期（Immediate）**: サービス実装を更新してコンパイルエラーを解消する
+1. **短期（Immediate）**: `ScoringService` 等の静的サービスをリファクタリングし、コンパイルエラーを解消する
 2. **短中期（Short-term）**: すべてのインポート文を新しいパスに更新する
 3. **中期（Medium-term）**: ユースケースを実装し、エラーハンドリングを強化する
 4. **長期（Long-term）**: テスト・ドキュメントを完成させる
 
 ## コンパイル状況 (Compilation Status)
-- ❌ インターフェース実装の不足によりコンパイルエラーが発生する可能性あり（未対応）
-- 🔄 Service Locator は作成済み。ただし一部サービスがインターフェースに準拠していない
-- 🔄 プロジェクト全体でインポート更新が必要な箇所が残っている場合あり
+- ✅ `AudioProcessingService` と `PitchDetectionService` がインターフェースに準拠。
+- ✅ `ServiceLocator` が新しいサービスを正しく登録するように更新済み。
+- ❌ `ScoringService` など、静的呼び出しを行っている箇所でコンパイルエラーが発生中。
+- 🔄 プロバイダや他ページでのインポートとサービス呼び出しの更新が必要。
 
 ## 見積時間 (Estimated Completion)
-- 高優先度タスク: 4-6 時間
+- 高優先度タスク: 3-5 時間
 - 中優先度タスク: 2-3 時間
 - 低優先度タスク: 1-2 時間
-- **合計目安**: 7-11 時間（環境により変動）
+- **合計目安**: 6-10 時間（環境により変動）
